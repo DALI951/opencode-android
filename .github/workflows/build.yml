@@ -27,11 +27,48 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Generate signing keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore release-key.jks \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -alias opencode \
+            -storepass opencode123 \
+            -keypass opencode123 \
+            -dname "CN=OpenCode, OU=Dev, O=OpenCode, L=Unknown, ST=Unknown, C=US"
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        env:
+          SIGNING_STORE_FILE: release-key.jks
+          SIGNING_STORE_PASSWORD: opencode123
+          SIGNING_KEY_ALIAS: opencode
+          SIGNING_KEY_PASSWORD: opencode123
+        run: |
+          # Sign the release APK manually
+          ./gradlew assembleRelease || true
+          
+          # Find the unsigned APK
+          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          
+          if [ -n "$UNSIGNED_APK" ]; then
+            # Align
+            ${ANDROID_HOME}/build-tools/$(ls ${ANDROID_HOME}/build-tools/ | sort -V | tail -1)/zipalign -v -p 4 "$UNSIGNED_APK" aligned.apk
+            
+            # Sign
+            ${ANDROID_HOME}/build-tools/$(ls ${ANDROID_HOME}/build-tools/ | sort -V | tail -1)/apksigner sign \
+              --ks release-key.jks \
+              --ks-pass pass:opencode123 \
+              --key-pass pass:opencode123 \
+              --ks-key-alias opencode \
+              --out app-release.apk \
+              aligned.apk
+          fi
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -43,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: opencode-release
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          path: app-release.apk
 
   release:
     needs: build
@@ -53,7 +90,12 @@ jobs:
       contents: write
 
     steps:
-      - name: Download artifacts
+      - name: Download Debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: opencode-debug
+
+      - name: Download Release APK
         uses: actions/download-artifact@v4
         with:
           name: opencode-release
@@ -64,18 +106,28 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: "Build #${{ github.run_number }}"
           body: |
-            Automated build from GitHub Actions.
+            ## OpenCode Android
             
-            ## APK Files
-            - `app-release-unsigned.apk` - Release APK (unsigned)
+            Native Android frontend for the OpenCode AI coding agent.
+            
+            ### APK Files
+            - **`app-release.apk`** - Signed release APK (recommended)
             - `app-debug.apk` - Debug APK
             
-            ### Installation
-            1. Download the APK file
-            2. Enable "Install from unknown sources" on your Android device
-            3. Install the APK
-            4. Configure the server connection in Settings
+            ### Setup
+            1. In Termux/Ubuntu, run: `opencode serve --hostname 0.0.0.0 --port 4096`
+            2. Install the APK on your Android device
+            3. Open the app - it auto-connects to `127.0.0.1:4096`
+            4. If using a different host, configure in Settings
+            
+            ### Features
+            - ChatGPT-like chat UI with streaming responses
+            - Real-time tool/action progress
+            - Session management (create, list, delete, abort)
+            - File browser with search
+            - Diff viewer for session changes
           files: |
-            app-release-unsigned.apk
+            app-release.apk
+            app-debug.apk
           draft: false
           prerelease: false

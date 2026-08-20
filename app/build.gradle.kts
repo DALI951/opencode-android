@@ -13,8 +13,8 @@ android {
         applicationId = "ai.opencode.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,7 +22,22 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFile = System.getenv("SIGNING_STORE_FILE")
+            if (storeFile != null) {
+                storeFile = file(storeFile)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            isMinifyEnabled = false
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -30,6 +45,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val storeFile = System.getenv("SIGNING_STORE_FILE")
+            if (storeFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
