@@ -80,8 +80,10 @@ class ChatViewModel(
                     handleEvent(event)
                 }
             } catch (e: Exception) {
-                Log.e("ChatViewModel", "Event subscription error", e)
+                Log.e("ChatViewModel", "Event subscription error, reconnecting in 3s", e)
                 _uiState.update { it.copy(isConnected = false) }
+                kotlinx.coroutines.delay(3000)
+                subscribeToEvents()
             }
         }
     }
@@ -119,9 +121,22 @@ class ChatViewModel(
         } else if (message is UserMessage && message.sessionID == currentSessionId) {
             _uiState.update { state ->
                 val messages = state.messages.toMutableList()
-                val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
-                if (idx >= 0) messages[idx] = message else messages.add(message)
-                state.copy(messages = messages)
+                // Check if there's a temp UserMessage to replace
+                val tempIdx = messages.indexOfFirst { it is UserMessage && it.id.startsWith("temp-") }
+                if (tempIdx >= 0) {
+                    // Transfer display text from temp to real message
+                    val tempMsg = messages[tempIdx] as UserMessage
+                    val displayText = state.userInputTexts[tempMsg.id]
+                    messages[tempIdx] = message
+                    val newTexts = if (displayText != null) {
+                        state.userInputTexts + (message.id to displayText)
+                    } else state.userInputTexts
+                    state.copy(messages = messages, userInputTexts = newTexts)
+                } else {
+                    val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
+                    if (idx >= 0) messages[idx] = message else messages.add(message)
+                    state.copy(messages = messages)
+                }
             }
         }
     }

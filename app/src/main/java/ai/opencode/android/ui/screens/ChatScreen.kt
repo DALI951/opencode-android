@@ -49,7 +49,6 @@ fun ChatScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (uiState.currentSessionId == null) {
@@ -115,7 +114,8 @@ fun ChatMessageItem(message: Any, parts: List<Part>, userInputText: String? = nu
 
 @Composable
 fun UserMessageBubble(message: UserMessage, displayText: String? = null) {
-    val text = displayText ?: message.summary?.title ?: "Message sent"
+    val text = displayText ?: message.summary?.title
+    if (text.isNullOrBlank()) return
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
             shape = RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
@@ -308,7 +308,9 @@ fun ChatInput(
 ) {
     Surface(
         tonalElevation = 3.dp,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding(),
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
