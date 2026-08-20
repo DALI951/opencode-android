@@ -1,5 +1,6 @@
 package ai.opencode.android.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -10,27 +11,30 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ai.opencode.android.data.model.*
+import ai.opencode.android.ui.screens.MonoFontFamily
 
 @Composable
 fun ToolCallItem(part: ToolCallPartData) {
     val state = part.state
+    val statusSymbol = when (state.status) {
+        "running" -> "\u25B6"
+        "completed" -> "\u2713"
+        "error" -> "\u2717"
+        else -> "\u25CB"
+    }
     val statusColor = when (state.status) {
         "running" -> MaterialTheme.colorScheme.tertiary
         "completed" -> MaterialTheme.colorScheme.tertiary
         "error" -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val statusIcon = when (state.status) {
-        "running" -> Icons.Filled.PlayArrow
-        "completed" -> Icons.Filled.CheckCircle
-        "error" -> Icons.Filled.Error
-        else -> Icons.Filled.HourglassEmpty
     }
     val title = when (state.status) {
         "running" -> state.title ?: part.tool
@@ -39,34 +43,43 @@ fun ToolCallItem(part: ToolCallPartData) {
         else -> part.tool
     }
 
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = statusColor.copy(alpha = 0.08f),
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(statusIcon, contentDescription = null, tint = statusColor, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = part.tool,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = statusColor,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        Text(
+            text = statusSymbol,
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 12.sp,
+                color = statusColor
+            )
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = part.tool,
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = statusColor
+            )
+        )
+        if (title != part.tool) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = title,
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -75,28 +88,44 @@ fun ToolCallItem(part: ToolCallPartData) {
 fun ReasoningItem(part: ReasoningPartData) {
     var expanded by remember { mutableStateOf(false) }
 
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = if (expanded) "Hide reasoning" else "Show reasoning",
-                    style = MaterialTheme.typography.labelMedium
+    Column(modifier = Modifier.padding(vertical = 1.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (expanded) "\u25BC" else "\u25B6",
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            if (expanded) {
-                Text(
-                    text = part.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "reasoning",
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 12.sp,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            )
+        }
+        if (expanded && part.text.isNotBlank()) {
+            Text(
+                text = part.text,
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     fontStyle = FontStyle.Italic
-                )
-            }
+                ),
+                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+            )
         }
     }
 }
@@ -105,10 +134,13 @@ fun ReasoningItem(part: ReasoningPartData) {
 fun StepFinishItem(part: StepFinishPartInfo) {
     if (part.cost > 0 || part.tokens.input > 0) {
         Text(
-            text = "Step finished - ${part.tokens.input + part.tokens.output} tokens, $${String.format("%.4f", part.cost)}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(vertical = 2.dp)
+            text = "[step: ${part.tokens.input + part.tokens.output} tokens, $${String.format("%.4f", part.cost)}]",
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            ),
+            modifier = Modifier.padding(vertical = 1.dp)
         )
     }
 }
@@ -122,19 +154,45 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
             when (segment) {
                 is MarkdownSegment.CodeBlock -> {
                     Surface(
-                        shape = MaterialTheme.shapes.small,
+                        shape = MaterialTheme.shapes.extraSmall,
                         color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        Text(
-                            text = segment.code,
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            modifier = Modifier.padding(8.dp)
-                        )
+                        Column {
+                            if (segment.language.isNotBlank()) {
+                                Text(
+                                    text = segment.language,
+                                    style = TextStyle(
+                                        fontFamily = MonoFontFamily,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                            Text(
+                                text = segment.code,
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                ),
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
                 }
                 is MarkdownSegment.Text -> {
-                    Text(text = segment.text, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        text = segment.text,
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    )
                 }
             }
         }

@@ -8,7 +8,11 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.opencode.android.ui.chat.ChatViewModel
@@ -18,6 +22,7 @@ import ai.opencode.android.ui.screens.FileBrowserScreen
 import ai.opencode.android.ui.screens.SessionListScreen
 import ai.opencode.android.ui.screens.SettingsScreen
 import ai.opencode.android.ui.screens.DiffViewerScreen
+import ai.opencode.android.ui.screens.MonoFontFamily
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +43,33 @@ fun OpenCodeMain(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("OpenCode")
-                        if (uiState.isConnected) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "opencode",
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        if (uiState.serverVersion != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "v${uiState.serverVersion ?: "?"}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "v${uiState.serverVersion}",
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+                        if (uiState.isGenerating) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -159,18 +184,29 @@ fun OpenCodeMain(
     uiState.pendingPermission?.let { permission ->
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("Permission Required") },
+            title = {
+                Text(
+                    "Permission Required",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            },
             text = {
-                Text("OpenCode needs permission: ${permission.title}")
+                Text(
+                    permission.title,
+                    style = TextStyle(fontFamily = MonoFontFamily)
+                )
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.respondPermission(true) }) {
-                    Text("Allow")
+                    Text("Allow", style = TextStyle(fontFamily = MonoFontFamily))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.respondPermission(false) }) {
-                    Text("Deny")
+                    Text("Deny", style = TextStyle(fontFamily = MonoFontFamily))
                 }
             }
         )
@@ -182,11 +218,11 @@ fun OpenCodeMain(
             modifier = Modifier.padding(16.dp),
             action = {
                 TextButton(onClick = { viewModel.clearError() }) {
-                    Text("Dismiss")
+                    Text("Dismiss", style = TextStyle(fontFamily = MonoFontFamily))
                 }
             }
         ) {
-            Text(error)
+            Text(error, style = TextStyle(fontFamily = MonoFontFamily))
         }
     }
 }
