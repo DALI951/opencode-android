@@ -91,17 +91,17 @@ class ChatViewModel(
             "message.updated" -> {
                 val info = event.properties.jsonObject["info"] ?: return
                 val message = parseMessage(json, info)
-                if (message is UserMessage && message.sessionID == currentSessionId) {
-                    _uiState.update { state ->
-                        val messages = state.messages.toMutableList()
-                        val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
-                        if (idx >= 0) messages[idx] = message else messages.add(message)
-                        state.copy(messages = messages)
-                    }
-                } else if (message is AssistantMessage && message.sessionID == currentSessionId) {
+                if (message is AssistantMessage && message.sessionID == currentSessionId) {
                     _uiState.update { state ->
                         val messages = state.messages.toMutableList()
                         val idx = messages.indexOfFirst { it is AssistantMessage && it.id == message.id }
+                        if (idx >= 0) messages[idx] = message else messages.add(message)
+                        state.copy(messages = messages, isGenerating = false, streamingText = "")
+                    }
+                } else if (message is UserMessage && message.sessionID == currentSessionId) {
+                    _uiState.update { state ->
+                        val messages = state.messages.toMutableList()
+                        val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
                         if (idx >= 0) messages[idx] = message else messages.add(message)
                         state.copy(messages = messages)
                     }
@@ -204,17 +204,26 @@ class ChatViewModel(
                     sb.clear()
                     sb.append(part.text)
                 }
-
                 _uiState.update { state ->
                     val existingParts = state.parts.toMutableList()
                     val idx = existingParts.indexOfFirst { it.id == part.id }
                     val updatedPart = part.copy(text = sb.toString())
                     if (idx >= 0) existingParts[idx] = updatedPart else existingParts.add(updatedPart)
-                    state.copy(parts = existingParts, isGenerating = true)
+                    state.copy(parts = existingParts, isGenerating = true, streamingText = sb.toString())
                 }
             }
 
-            is ToolCallPartData, is ReasoningPartData, is StepFinishPartInfo, is StepStartPartInfo -> {
+            is ToolCallPartData -> {
+                _uiState.update { state ->
+                    val existingParts = state.parts.toMutableList()
+                    val idx = existingParts.indexOfFirst { it.id == part.id }
+                    if (idx >= 0) existingParts[idx] = part else existingParts.add(part)
+                    val toolParts = existingParts.filterIsInstance<ToolCallPartData>()
+                    state.copy(parts = existingParts, currentToolCalls = toolParts)
+                }
+            }
+
+            is ReasoningPartData, is StepFinishPartInfo, is StepStartPartInfo -> {
                 _uiState.update { state ->
                     val existingParts = state.parts.toMutableList()
                     val idx = existingParts.indexOfFirst { it.id == part.id }
@@ -315,7 +324,9 @@ class ChatViewModel(
             state.copy(
                 messages = state.messages + userMessage,
                 isGenerating = true,
-                currentInput = ""
+                currentInput = "",
+                streamingText = "",
+                currentToolCalls = emptyList()
             )
         }
 
@@ -394,5 +405,7 @@ data class ChatUiState(
     val isCreatingSession: Boolean = false,
     val currentInput: String = "",
     val pendingPermission: PermissionInfo? = null,
-    val error: String? = null
+    val error: String? = null,
+    val streamingText: String = "",
+    val currentToolCalls: List<ToolCallPartData> = emptyList()
 )

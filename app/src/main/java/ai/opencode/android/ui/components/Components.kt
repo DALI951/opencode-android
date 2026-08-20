@@ -114,10 +114,10 @@ fun StepFinishItem(part: StepFinishPartInfo) {
 }
 
 @Composable
-fun MarkdownText(text: String) {
+fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val segments = remember(text) { parseMarkdownSegments(text) }
 
-    Column {
+    Column(modifier = modifier) {
         segments.forEach { segment ->
             when (segment) {
                 is MarkdownSegment.CodeBlock -> {

@@ -65,8 +65,13 @@ fun ChatScreen(
                     }
                     ChatMessageItem(message = message, parts = messageParts)
                 }
-                if (uiState.isGenerating && uiState.messages.lastOrNull()?.let { it is UserMessage } == true) {
-                    item { StreamingIndicator() }
+                if (uiState.isGenerating) {
+                    item {
+                        StreamingContent(
+                            streamingText = uiState.streamingText,
+                            toolCalls = uiState.currentToolCalls
+                        )
+                    }
                 }
             }
         }
@@ -157,7 +162,7 @@ fun AssistantMessageBubble(message: AssistantMessage, parts: List<Part>) {
 }
 
 @Composable
-fun StreamingIndicator() {
+fun StreamingContent(streamingText: String, toolCalls: List<ToolCallPartData>) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Box(
             modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
@@ -166,11 +171,26 @@ fun StreamingIndicator() {
             Text("AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
         }
         Spacer(modifier = Modifier.width(8.dp))
-        Surface(shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Thinking...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.widthIn(max = 340.dp)) {
+            toolCalls.forEach { tool ->
+                ToolCallItem(part = tool)
+            }
+            if (streamingText.isNotBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    MarkdownText(text = streamingText, modifier = Modifier.padding(12.dp))
+                }
+            } else if (toolCalls.isEmpty()) {
+                Surface(shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Thinking...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }
@@ -216,7 +236,14 @@ fun ChatInput(
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Ask OpenCode...") },
                 maxLines = 5,
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
             )
             Spacer(modifier = Modifier.width(8.dp))
             if (isGenerating) {
