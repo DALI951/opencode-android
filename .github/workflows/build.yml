@@ -27,8 +27,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Generate signing keystore
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build Release APK (unsigned)
+        run: ./gradlew assembleRelease
+
+      - name: Sign Release APK
         run: |
+          # Generate a signing key
           keytool -genkeypair \
             -v \
             -keystore release-key.jks \
@@ -40,35 +47,34 @@ jobs:
             -keypass opencode123 \
             -dname "CN=OpenCode, OU=Dev, O=OpenCode, L=Unknown, ST=Unknown, C=US"
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+          # Find the unsigned release APK
+          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*-unsigned.apk" | head -1)
+          echo "Found unsigned APK: $UNSIGNED_APK"
 
-      - name: Build Release APK
-        env:
-          SIGNING_STORE_FILE: release-key.jks
-          SIGNING_STORE_PASSWORD: opencode123
-          SIGNING_KEY_ALIAS: opencode
-          SIGNING_KEY_PASSWORD: opencode123
-        run: |
-          # Sign the release APK manually
-          ./gradlew assembleRelease || true
-          
-          # Find the unsigned APK
-          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          
-          if [ -n "$UNSIGNED_APK" ]; then
-            # Align
-            ${ANDROID_HOME}/build-tools/$(ls ${ANDROID_HOME}/build-tools/ | sort -V | tail -1)/zipalign -v -p 4 "$UNSIGNED_APK" aligned.apk
-            
-            # Sign
-            ${ANDROID_HOME}/build-tools/$(ls ${ANDROID_HOME}/build-tools/ | sort -V | tail -1)/apksigner sign \
-              --ks release-key.jks \
-              --ks-pass pass:opencode123 \
-              --key-pass pass:opencode123 \
-              --ks-key-alias opencode \
-              --out app-release.apk \
-              aligned.apk
+          if [ -z "$UNSIGNED_APK" ]; then
+            echo "No unsigned APK found, listing directory:"
+            find app/build/outputs -name "*.apk" -type f
+            exit 1
           fi
+
+          # Find build tools
+          BUILD_TOOLS=$(ls ${ANDROID_HOME}/build-tools/ | sort -V | tail -1)
+          echo "Using build tools: $BUILD_TOOLS"
+
+          # Zipalign
+          ${ANDROID_HOME}/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$UNSIGNED_APK" aligned.apk
+
+          # Sign with apksigner
+          ${ANDROID_HOME}/build-tools/$BUILD_TOOLS/apksigner sign \
+            --ks release-key.jks \
+            --ks-pass pass:opencode123 \
+            --key-pass pass:opencode123 \
+            --ks-key-alias opencode \
+            --out app-release.apk \
+            aligned.apk
+
+          echo "Signed APK created: app-release.apk"
+          ls -la app-release.apk
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -99,6 +105,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: opencode-release
+
+      - name: List downloaded files
+        run: ls -la
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
