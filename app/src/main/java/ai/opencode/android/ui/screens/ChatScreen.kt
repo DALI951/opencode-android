@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ai.opencode.android.data.model.*
@@ -37,9 +38,11 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(uiState.messages.size, uiState.parts.size) {
-        if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.size - 1)
+    LaunchedEffect(uiState.messages.size, uiState.parts.size, uiState.streamingText, uiState.isGenerating) {
+        if (uiState.isGenerating) {
+            listState.animateScrollToItem(listState.layoutInfo.totalItemsCount)
+        } else if (uiState.messages.isNotEmpty()) {
+            listState.animateScrollToItem(listState.layoutInfo.totalItemsCount)
         }
     }
 
@@ -57,7 +60,10 @@ fun ChatScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(items = uiState.messages, key = { (it as? UserMessage)?.id ?: (it as? AssistantMessage)?.id ?: "" }) { message ->
+                items(
+                    items = uiState.messages,
+                    key = { (it as? UserMessage)?.id ?: (it as? AssistantMessage)?.id ?: "" }
+                ) { message ->
                     val messageParts = when (message) {
                         is UserMessage -> emptyList()
                         is AssistantMessage -> uiState.parts.filter { it.messageID == message.id }
@@ -66,7 +72,7 @@ fun ChatScreen(
                     ChatMessageItem(message = message, parts = messageParts)
                 }
                 if (uiState.isGenerating) {
-                    item {
+                    item(key = "streaming") {
                         StreamingContent(
                             streamingText = uiState.streamingText,
                             toolCalls = uiState.currentToolCalls
@@ -82,7 +88,10 @@ fun ChatScreen(
                 onInputChange = onUpdateInput,
                 onSend = { text ->
                     onSendMessage(text)
-                    coroutineScope.launch { listState.animateScrollToItem(uiState.messages.size) }
+                    coroutineScope.launch {
+                        kotlinx.coroutines.delay(100)
+                        listState.animateScrollToItem(listState.layoutInfo.totalItemsCount)
+                    }
                 },
                 isGenerating = uiState.isGenerating,
                 onAbort = onAbort
@@ -122,36 +131,55 @@ fun UserMessageBubble(message: UserMessage) {
 fun AssistantMessageBubble(message: AssistantMessage, parts: List<Part>) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Text("AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                "OC",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.widthIn(max = 340.dp)) {
-            Surface(
-                shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
-                color = if (message.error != null) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    parts.forEach { part ->
-                        when (part) {
-                            is TextPartData -> if (part.text.isNotBlank()) MarkdownText(text = part.text)
-                            is ToolCallPartData -> ToolCallItem(part = part)
-                            is ReasoningPartData -> ReasoningItem(part = part)
-                            is StepFinishPartInfo -> StepFinishItem(part = part)
-                            else -> { /* ignore */ }
+            if (parts.isNotEmpty() || message.error != null) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                    color = if (message.error != null) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        parts.forEach { part ->
+                            when (part) {
+                                is TextPartData -> if (part.text.isNotBlank()) {
+                                    MarkdownText(text = part.text)
+                                }
+                                is ToolCallPartData -> ToolCallItem(part = part)
+                                is ReasoningPartData -> ReasoningItem(part = part)
+                                is StepFinishPartInfo -> StepFinishItem(part = part)
+                                else -> { /* ignore */ }
+                            }
                         }
-                    }
-                    if (message.error != null) {
-                        Text("Error occurred", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        if (message.error != null) {
+                            Text(
+                                "Error occurred",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
             if (message.tokens.input > 0 || message.tokens.output > 0) {
                 Text(
-                    text = "${message.tokens.input + message.tokens.output} tokens",
+                    text = "${message.tokens.input} in / ${message.tokens.output} out",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -165,10 +193,17 @@ fun AssistantMessageBubble(message: AssistantMessage, parts: List<Part>) {
 fun StreamingContent(streamingText: String, toolCalls: List<ToolCallPartData>) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Text("AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                "OC",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.widthIn(max = 340.dp)) {
@@ -184,11 +219,25 @@ fun StreamingContent(streamingText: String, toolCalls: List<ToolCallPartData>) {
                     MarkdownText(text = streamingText, modifier = Modifier.padding(12.dp))
                 }
             } else if (toolCalls.isEmpty()) {
-                Surface(shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Surface(
+                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Thinking...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Thinking...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -203,13 +252,40 @@ fun WelcomeScreen(onNewSession: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+        Surface(
+            modifier = Modifier.size(80.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    "OC",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(24.dp))
-        Text("OpenCode", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
+        Text(
+            "OpenCode",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Text("AI Coding Agent", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            "AI Coding Agent",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onNewSession, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = onNewSession,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
             Icon(Icons.Outlined.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text("New Session")
@@ -225,38 +301,66 @@ fun ChatInput(
     isGenerating: Boolean,
     onAbort: () -> Unit
 ) {
-    Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        tonalElevation = 3.dp,
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface
+    ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).imePadding(),
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .imePadding(),
             verticalAlignment = Alignment.Bottom
         ) {
             OutlinedTextField(
                 value = input,
                 onValueChange = onInputChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask OpenCode...") },
+                placeholder = {
+                    Text(
+                        "Ask OpenCode...",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                },
                 maxLines = 5,
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedTextColor = Color(0xFFEEEEEE),
+                    unfocusedTextColor = Color(0xFFEEEEEE),
                     cursorColor = MaterialTheme.colorScheme.primary,
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedContainerColor = Color(0xFF1E1E1E),
+                    unfocusedContainerColor = Color(0xFF1E1E1E),
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    focusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
             Spacer(modifier = Modifier.width(8.dp))
             if (isGenerating) {
                 FilledIconButton(
                     onClick = onAbort,
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Icon(Icons.Filled.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.onError)
+                    Icon(
+                        Icons.Filled.Stop,
+                        contentDescription = "Stop",
+                        tint = MaterialTheme.colorScheme.onError
+                    )
                 }
             } else {
                 FilledIconButton(
                     onClick = { if (input.isNotBlank()) onSend(input) },
-                    enabled = input.isNotBlank()
+                    enabled = input.isNotBlank(),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 ) {
                     Icon(Icons.Filled.Send, contentDescription = "Send")
                 }

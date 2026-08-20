@@ -96,7 +96,7 @@ class ChatViewModel(
                         val messages = state.messages.toMutableList()
                         val idx = messages.indexOfFirst { it is AssistantMessage && it.id == message.id }
                         if (idx >= 0) messages[idx] = message else messages.add(message)
-                        state.copy(messages = messages, isGenerating = false, streamingText = "")
+                        state.copy(messages = messages)
                     }
                 } else if (message is UserMessage && message.sessionID == currentSessionId) {
                     _uiState.update { state ->
@@ -123,8 +123,12 @@ class ChatViewModel(
                 val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
                 val statusElement = props["status"] ?: return
                 if (sessionId == currentSessionId) {
+                    val status = parseSessionStatus(json, statusElement)
                     _uiState.update {
-                        it.copy(sessionStatus = parseSessionStatus(json, statusElement))
+                        it.copy(
+                            sessionStatus = status,
+                            isGenerating = status is SessionStatus.Busy
+                        )
                     }
                 }
             }
@@ -134,7 +138,12 @@ class ChatViewModel(
                 val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
                 if (sessionId == currentSessionId) {
                     _uiState.update {
-                        it.copy(sessionStatus = SessionStatus.Idle, isGenerating = false)
+                        it.copy(
+                            sessionStatus = SessionStatus.Idle,
+                            isGenerating = false,
+                            streamingText = "",
+                            currentToolCalls = emptyList()
+                        )
                     }
                 }
             }
@@ -204,6 +213,7 @@ class ChatViewModel(
                     sb.clear()
                     sb.append(part.text)
                 }
+
                 _uiState.update { state ->
                     val existingParts = state.parts.toMutableList()
                     val idx = existingParts.indexOfFirst { it.id == part.id }
@@ -219,7 +229,7 @@ class ChatViewModel(
                     val idx = existingParts.indexOfFirst { it.id == part.id }
                     if (idx >= 0) existingParts[idx] = part else existingParts.add(part)
                     val toolParts = existingParts.filterIsInstance<ToolCallPartData>()
-                    state.copy(parts = existingParts, currentToolCalls = toolParts)
+                    state.copy(parts = existingParts, currentToolCalls = toolParts, isGenerating = true)
                 }
             }
 
@@ -267,7 +277,9 @@ class ChatViewModel(
                 currentDiffs = emptyList(),
                 todos = emptyList(),
                 pendingPermission = null,
-                isGenerating = false
+                isGenerating = false,
+                streamingText = "",
+                currentToolCalls = emptyList()
             )
         }
 
