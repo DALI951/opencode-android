@@ -91,10 +91,17 @@ class ChatViewModel(
             "message.updated" -> {
                 val info = event.properties.jsonObject["info"] ?: return
                 val message = parseMessage(json, info)
-                if (message.sessionID == currentSessionId) {
+                if (message is UserMessage && message.sessionID == currentSessionId) {
                     _uiState.update { state ->
                         val messages = state.messages.toMutableList()
-                        val idx = messages.indexOfFirst { it.id == message.id }
+                        val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
+                        if (idx >= 0) messages[idx] = message else messages.add(message)
+                        state.copy(messages = messages)
+                    }
+                } else if (message is AssistantMessage && message.sessionID == currentSessionId) {
+                    _uiState.update { state ->
+                        val messages = state.messages.toMutableList()
+                        val idx = messages.indexOfFirst { it is AssistantMessage && it.id == message.id }
                         if (idx >= 0) messages[idx] = message else messages.add(message)
                         state.copy(messages = messages)
                     }
@@ -296,15 +303,17 @@ class ChatViewModel(
         val sessionId = currentSessionId ?: return
         if (text.isBlank()) return
 
+        val userMessage = UserMessage(
+            id = "temp-${System.currentTimeMillis()}",
+            sessionID = sessionId,
+            time = MessageTime(created = System.currentTimeMillis()),
+            agent = "build",
+            model = MessageModel(providerID = "", modelID = "")
+        )
+
         _uiState.update { state ->
             state.copy(
-                messages = state.messages + UserMessage(
-                    id = "temp-${System.currentTimeMillis()}",
-                    sessionID = sessionId,
-                    time = MessageTime(created = System.currentTimeMillis()),
-                    agent = "build",
-                    model = MessageModel(providerID = "", modelID = "")
-                ).let { object : Message() { override val id = it.id; override val sessionID = it.sessionID } },
+                messages = state.messages + userMessage,
                 isGenerating = true,
                 currentInput = ""
             )
@@ -361,9 +370,11 @@ class ChatViewModel(
         eventSubscription?.cancel()
     }
 
-    class Factory : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel() as T
+    companion object {
+        val Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel() as T
+        }
     }
 }
 
@@ -374,7 +385,7 @@ data class ChatUiState(
     val serverVersion: String? = null,
     val sessions: List<Session> = emptyList(),
     val currentSessionId: String? = null,
-    val messages: List<Message> = emptyList(),
+    val messages: List<Any> = emptyList(),
     val parts: List<Part> = emptyList(),
     val currentDiffs: List<FileDiff> = emptyList(),
     val todos: List<Todo> = emptyList(),

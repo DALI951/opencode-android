@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import ai.opencode.android.data.model.FileDiff
@@ -65,7 +66,6 @@ fun DiffItem(diff: FileDiff) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // File header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -92,8 +92,7 @@ fun DiffItem(diff: FileDiff) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Simple diff display
-            val diffLines = remember(diff) { generateDiffPreview(diff) }
+            val diffLines = generateDiffPreview(diff)
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.surface,
@@ -122,7 +121,7 @@ fun DiffItem(diff: FileDiff) {
 
 data class DiffLine(
     val text: String,
-    val color: androidx.compose.ui.graphics.Color
+    val color: Color
 )
 
 @Composable
@@ -135,7 +134,6 @@ fun generateDiffPreview(diff: FileDiff): List<DiffLine> {
     val beforeLines = diff.before.lines()
     val afterLines = diff.after.lines()
 
-    // Simple diff: show removed lines then added lines
     beforeLines.take(20).forEach { line ->
         if (line.isNotBlank()) {
             lines.add(DiffLine("- $line", removedColor))

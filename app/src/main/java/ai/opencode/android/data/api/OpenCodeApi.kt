@@ -127,7 +127,7 @@ class OpenCodeApi(
     }
 
     // Messages
-    suspend fun listMessages(sessionId: String): Result<List<Pair<Message, List<Part>>>> {
+    suspend fun listMessages(sessionId: String): Result<List<Pair<Any, List<Part>>>> {
         return rawRequest("GET", "/session/$sessionId/message").map { body ->
             val array = json.parseToJsonElement(body).jsonArray
             array.map { element ->

@@ -57,8 +57,13 @@ fun ChatScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(items = uiState.messages, key = { it.id }) { message ->
-                    ChatMessageItem(message = message, parts = uiState.parts.filter { it.messageID == message.id })
+                items(items = uiState.messages, key = { (it as? UserMessage)?.id ?: (it as? AssistantMessage)?.id ?: "" }) { message ->
+                    val messageParts = when (message) {
+                        is UserMessage -> emptyList()
+                        is AssistantMessage -> uiState.parts.filter { it.messageID == message.id }
+                        else -> emptyList()
+                    }
+                    ChatMessageItem(message = message, parts = messageParts)
                 }
                 if (uiState.isGenerating && uiState.messages.lastOrNull()?.let { it is UserMessage } == true) {
                     item { StreamingIndicator() }
@@ -82,7 +87,7 @@ fun ChatScreen(
 }
 
 @Composable
-fun ChatMessageItem(message: Message, parts: List<Part>) {
+fun ChatMessageItem(message: Any, parts: List<Part>) {
     when (message) {
         is UserMessage -> UserMessageBubble(message = message)
         is AssistantMessage -> AssistantMessageBubble(message = message, parts = parts)

@@ -26,6 +26,8 @@ data class TimeInfo(
 
 @Serializable
 data class SummaryInfo(
+    val title: String? = null,
+    val body: String? = null,
     val additions: Int = 0,
     val deletions: Int = 0,
     val files: Int = 0,

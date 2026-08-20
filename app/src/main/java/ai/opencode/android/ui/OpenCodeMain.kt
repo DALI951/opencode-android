@@ -8,10 +8,12 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ai.opencode.android.ui.chat.ChatViewModel
 import ai.opencode.android.ui.screens.ChatScreen
+import ai.opencode.android.ui.screens.ConnectionScreen
 import ai.opencode.android.ui.screens.FileBrowserScreen
 import ai.opencode.android.ui.screens.SessionListScreen
 import ai.opencode.android.ui.screens.SettingsScreen
@@ -67,7 +69,7 @@ fun OpenCodeMain(
                     }
                     if (uiState.currentSessionId != null) {
                         IconButton(onClick = { currentScreen = Screen.Diff }) {
-                            Icon(Icons.Outlined.Diff, contentDescription = "Changes")
+                            Icon(Icons.Outlined.TrackChanges, contentDescription = "Changes")
                         }
                     }
                     IconButton(onClick = { currentScreen = Screen.Settings }) {

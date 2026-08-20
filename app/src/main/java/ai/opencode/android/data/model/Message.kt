@@ -32,25 +32,15 @@ data class AssistantMessage(
     val summary: Boolean? = null
 )
 
-sealed class Message {
+open abstract class Message {
     abstract val id: String
     abstract val sessionID: String
 }
 
-fun UserMessage.toMessage(): Message = object : Message() {
-    override val id: String = this@toMessage.id
-    override val sessionID: String = this@toMessage.sessionID
-}
-
-fun AssistantMessage.toMessage(): Message = object : Message() {
-    override val id: String = this@toMessage.id
-    override val sessionID: String = this@toMessage.sessionID
-}
-
-fun parseMessage(json: Json, element: JsonElement): Message {
+fun parseMessage(json: Json, element: JsonElement): Any {
     return when (element.jsonObject["role"]?.jsonPrimitive?.content) {
-        "user" -> json.decodeFromJsonElement<UserMessage>(element).toMessage()
-        else -> json.decodeFromJsonElement<AssistantMessage>(element).toMessage()
+        "user" -> json.decodeFromJsonElement<UserMessage>(element)
+        else -> json.decodeFromJsonElement<AssistantMessage>(element)
     }
 }
 
