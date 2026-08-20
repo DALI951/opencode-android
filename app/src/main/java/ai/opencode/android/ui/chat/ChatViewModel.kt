@@ -87,118 +87,128 @@ class ChatViewModel(
     }
 
     private fun handleEvent(event: EventEnvelope) {
-        when (event.type) {
-            "message.updated" -> {
-                val info = event.properties.jsonObject["info"] ?: return
-                val message = parseMessage(json, info)
-                if (message is AssistantMessage && message.sessionID == currentSessionId) {
-                    _uiState.update { state ->
-                        val messages = state.messages.toMutableList()
-                        val idx = messages.indexOfFirst { it is AssistantMessage && it.id == message.id }
-                        if (idx >= 0) messages[idx] = message else messages.add(message)
-                        state.copy(messages = messages)
-                    }
-                } else if (message is UserMessage && message.sessionID == currentSessionId) {
-                    _uiState.update { state ->
-                        val messages = state.messages.toMutableList()
-                        val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
-                        if (idx >= 0) messages[idx] = message else messages.add(message)
-                        state.copy(messages = messages)
-                    }
-                }
+        try {
+            when (event.type) {
+                "message.updated" -> handle_message_updated(event)
+                "message.part.updated" -> handle_message_part_updated(event)
+                "session.status" -> handle_session_status(event)
+                "session.idle" -> handle_session_idle(event)
+                "session.created", "session.updated" -> loadSessions()
+                "session.deleted" -> handle_session_deleted(event)
+                "session.diff" -> handle_session_diff(event)
+                "session.error" -> handle_session_error(event)
+                "permission.updated" -> handle_permission_updated(event)
+                "permission.replied" -> _uiState.update { it.copy(pendingPermission = null) }
+                "todo.updated" -> handle_todo_updated(event)
             }
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Error handling event: ${event.type}", e)
+        }
+    }
 
-            "message.part.updated" -> {
-                val props = event.properties.jsonObject
-                val partElement = props["part"] ?: return
-                val delta = props["delta"]?.jsonPrimitive?.contentOrNull
-                val part = parsePart(json, partElement)
-                if (part.sessionID == currentSessionId) {
-                    handlePartUpdate(part, delta)
-                }
+    private fun handle_message_updated(event: EventEnvelope) {
+        val info = event.properties.jsonObject["info"] ?: return
+        val message = parseMessage(json, info)
+        if (message is AssistantMessage && message.sessionID == currentSessionId) {
+            _uiState.update { state ->
+                val messages = state.messages.toMutableList()
+                val idx = messages.indexOfFirst { it is AssistantMessage && it.id == message.id }
+                if (idx >= 0) messages[idx] = message else messages.add(message)
+                state.copy(messages = messages)
             }
-
-            "session.status" -> {
-                val props = event.properties.jsonObject
-                val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
-                val statusElement = props["status"] ?: return
-                if (sessionId == currentSessionId) {
-                    val status = parseSessionStatus(json, statusElement)
-                    _uiState.update {
-                        it.copy(
-                            sessionStatus = status,
-                            isGenerating = status is SessionStatus.Busy
-                        )
-                    }
-                }
+        } else if (message is UserMessage && message.sessionID == currentSessionId) {
+            _uiState.update { state ->
+                val messages = state.messages.toMutableList()
+                val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
+                if (idx >= 0) messages[idx] = message else messages.add(message)
+                state.copy(messages = messages)
             }
+        }
+    }
 
-            "session.idle" -> {
-                val props = event.properties.jsonObject
-                val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
-                if (sessionId == currentSessionId) {
-                    _uiState.update {
-                        it.copy(
-                            sessionStatus = SessionStatus.Idle,
-                            isGenerating = false,
-                            streamingText = "",
-                            currentToolCalls = emptyList()
-                        )
-                    }
-                }
+    private fun handle_message_part_updated(event: EventEnvelope) {
+        val props = event.properties.jsonObject
+        val partElement = props["part"] ?: return
+        val delta = props["delta"]?.jsonPrimitive?.contentOrNull
+        val part = parsePart(json, partElement)
+        if (part.sessionID == currentSessionId) {
+            handlePartUpdate(part, delta)
+        }
+    }
+
+    private fun handle_session_status(event: EventEnvelope) {
+        val props = event.properties.jsonObject
+        val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
+        val statusElement = props["status"] ?: return
+        if (sessionId == currentSessionId) {
+            val status = parseSessionStatus(json, statusElement)
+            _uiState.update {
+                it.copy(
+                    sessionStatus = status,
+                    isGenerating = status is SessionStatus.Busy
+                )
             }
+        }
+    }
 
-            "session.created", "session.updated" -> loadSessions()
-
-            "session.deleted" -> {
-                val info = event.properties.jsonObject["info"]?.let {
-                    json.decodeFromJsonElement<Session>(it)
-                }
-                loadSessions()
-                if (info?.id == currentSessionId) {
-                    currentSessionId = null
-                    _uiState.update { it.copy(messages = emptyList(), parts = emptyList(), currentSessionId = null) }
-                }
+    private fun handle_session_idle(event: EventEnvelope) {
+        val props = event.properties.jsonObject
+        val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
+        if (sessionId == currentSessionId) {
+            _uiState.update {
+                it.copy(
+                    sessionStatus = SessionStatus.Idle,
+                    isGenerating = false,
+                    streamingText = "",
+                    currentToolCalls = emptyList()
+                )
             }
+        }
+    }
 
-            "session.diff" -> {
-                val props = event.properties.jsonObject
-                val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
-                val diffArray = props["diff"]?.jsonArray ?: return
-                if (sessionId == currentSessionId) {
-                    val diffs = diffArray.map { json.decodeFromJsonElement<FileDiff>(it) }
-                    _uiState.update { it.copy(currentDiffs = diffs) }
-                }
-            }
+    private fun handle_session_deleted(event: EventEnvelope) {
+        val info = event.properties.jsonObject["info"]?.let {
+            json.decodeFromJsonElement<Session>(it)
+        }
+        loadSessions()
+        if (info?.id == currentSessionId) {
+            currentSessionId = null
+            _uiState.update { it.copy(messages = emptyList(), parts = emptyList(), currentSessionId = null, userInputTexts = emptyMap()) }
+        }
+    }
 
-            "session.error" -> {
-                val props = event.properties.jsonObject
-                val sessionId = props["sessionID"]?.jsonPrimitive?.contentOrNull
-                if (sessionId == currentSessionId || sessionId == null) {
-                    _uiState.update {
-                        it.copy(isGenerating = false, error = "Session error occurred")
-                    }
-                }
-            }
+    private fun handle_session_diff(event: EventEnvelope) {
+        val props = event.properties.jsonObject
+        val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
+        val diffArray = props["diff"]?.jsonArray ?: return
+        if (sessionId == currentSessionId) {
+            val diffs = diffArray.map { json.decodeFromJsonElement<FileDiff>(it) }
+            _uiState.update { it.copy(currentDiffs = diffs) }
+        }
+    }
 
-            "permission.updated" -> {
-                val permission = json.decodeFromJsonElement<PermissionInfo>(event.properties)
-                _uiState.update { it.copy(pendingPermission = permission) }
+    private fun handle_session_error(event: EventEnvelope) {
+        val props = event.properties.jsonObject
+        val sessionId = props["sessionID"]?.jsonPrimitive?.contentOrNull
+        if (sessionId == currentSessionId || sessionId == null) {
+            _uiState.update {
+                it.copy(isGenerating = false, error = "Session error occurred")
             }
+        }
+    }
 
-            "permission.replied" -> {
-                _uiState.update { it.copy(pendingPermission = null) }
-            }
+    private fun handle_permission_updated(event: EventEnvelope) {
+        val permission = json.decodeFromJsonElement<PermissionInfo>(event.properties)
+        _uiState.update { it.copy(pendingPermission = permission) }
+    }
 
-            "todo.updated" -> {
-                val props = event.properties.jsonObject
-                val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
-                val todosArray = props["todos"]?.jsonArray ?: return
-                if (sessionId == currentSessionId) {
-                    val todos = todosArray.map { json.decodeFromJsonElement<Todo>(it) }
-                    _uiState.update { it.copy(todos = todos) }
-                }
-            }
+    private fun handle_todo_updated(event: EventEnvelope) {
+        val props = event.properties.jsonObject
+        val sessionId = props["sessionID"]?.jsonPrimitive?.content ?: return
+        val todosArray = props["todos"]?.jsonArray ?: return
+        if (sessionId == currentSessionId) {
+            val todos = todosArray.map { json.decodeFromJsonElement<Todo>(it) }
+            _uiState.update { it.copy(todos = todos) }
         }
     }
 
@@ -279,7 +289,8 @@ class ChatViewModel(
                 pendingPermission = null,
                 isGenerating = false,
                 streamingText = "",
-                currentToolCalls = emptyList()
+                currentToolCalls = emptyList(),
+                userInputTexts = emptyMap()
             )
         }
 
@@ -324,8 +335,9 @@ class ChatViewModel(
         val sessionId = currentSessionId ?: return
         if (text.isBlank()) return
 
+        val msgId = "temp-${System.currentTimeMillis()}"
         val userMessage = UserMessage(
-            id = "temp-${System.currentTimeMillis()}",
+            id = msgId,
             sessionID = sessionId,
             time = MessageTime(created = System.currentTimeMillis()),
             agent = "build",
@@ -338,7 +350,8 @@ class ChatViewModel(
                 isGenerating = true,
                 currentInput = "",
                 streamingText = "",
-                currentToolCalls = emptyList()
+                currentToolCalls = emptyList(),
+                userInputTexts = state.userInputTexts + (msgId to text)
             )
         }
 
@@ -368,7 +381,7 @@ class ChatViewModel(
                 onSuccess = {
                     if (currentSessionId == sessionId) {
                         currentSessionId = null
-                        _uiState.update { it.copy(messages = emptyList(), parts = emptyList(), currentSessionId = null) }
+                        _uiState.update { it.copy(messages = emptyList(), parts = emptyList(), currentSessionId = null, userInputTexts = emptyMap()) }
                     }
                     loadSessions()
                 },
@@ -419,5 +432,6 @@ data class ChatUiState(
     val pendingPermission: PermissionInfo? = null,
     val error: String? = null,
     val streamingText: String = "",
-    val currentToolCalls: List<ToolCallPartData> = emptyList()
+    val currentToolCalls: List<ToolCallPartData> = emptyList(),
+    val userInputTexts: Map<String, String> = emptyMap()
 )

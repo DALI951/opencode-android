@@ -57,6 +57,14 @@ sealed class SessionStatus {
 }
 
 fun parseSessionStatus(json: Json, element: JsonElement): SessionStatus {
+    if (element is JsonPrimitive) {
+        return when (element.content) {
+            "idle" -> SessionStatus.Idle
+            "busy" -> SessionStatus.Busy
+            "retry" -> SessionStatus.Retry()
+            else -> SessionStatus.Idle
+        }
+    }
     val obj = element.jsonObject
     return when (obj["type"]?.jsonPrimitive?.content) {
         "idle" -> SessionStatus.Idle

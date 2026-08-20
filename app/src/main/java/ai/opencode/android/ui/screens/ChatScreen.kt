@@ -49,6 +49,7 @@ fun ChatScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (uiState.currentSessionId == null) {
@@ -69,7 +70,11 @@ fun ChatScreen(
                         is AssistantMessage -> uiState.parts.filter { it.messageID == message.id }
                         else -> emptyList()
                     }
-                    ChatMessageItem(message = message, parts = messageParts)
+                    ChatMessageItem(
+                        message = message,
+                        parts = messageParts,
+                        userInputText = if (message is UserMessage) uiState.userInputTexts[message.id] else null
+                    )
                 }
                 if (uiState.isGenerating) {
                     item(key = "streaming") {
@@ -101,22 +106,22 @@ fun ChatScreen(
 }
 
 @Composable
-fun ChatMessageItem(message: Any, parts: List<Part>) {
+fun ChatMessageItem(message: Any, parts: List<Part>, userInputText: String? = null) {
     when (message) {
-        is UserMessage -> UserMessageBubble(message = message)
+        is UserMessage -> UserMessageBubble(message = message, displayText = userInputText)
         is AssistantMessage -> AssistantMessageBubble(message = message, parts = parts)
     }
 }
 
 @Composable
-fun UserMessageBubble(message: UserMessage) {
+fun UserMessageBubble(message: UserMessage, displayText: String? = null) {
+    val text = displayText ?: message.summary?.title ?: "Message sent"
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
             shape = RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            val text = message.summary?.title ?: "Message sent"
             Text(
                 text = text,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -308,14 +313,15 @@ fun ChatInput(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .imePadding(),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
             OutlinedTextField(
                 value = input,
                 onValueChange = onInputChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp, max = 150.dp),
                 placeholder = {
                     Text(
                         "Ask OpenCode...",

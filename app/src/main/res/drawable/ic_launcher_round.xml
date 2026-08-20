@@ -4,13 +4,13 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Dark background -->
-    <path android:fillColor="#0A0A0A" android:pathData="M0,0h48v48H0z"/>
-    <!-- O letter - warm orange -->
-    <path android:fillColor="#FAB283" android:pathData="M8,10 L8,38 L14,38 L14,16 L20,16 L20,38 L26,38 L26,10 L20,10 L20,14 L14,14 L14,10 Z"/>
-    <!-- C letter - warm orange -->
-    <path android:fillColor="#FAB283" android:pathData="M28,10 L28,38 L34,38 L34,16 L36,16 L36,14 L34,14 L34,10 Z"/>
-    <!-- Cursor - blue -->
-    <path android:fillColor="#5C9CF5" android:pathData="M37,10 L37,38 L43,38 L43,10 Z"/>
-    <path android:fillColor="#0A0A0A" android:pathData="M39,18 L41,18 L41,30 L39,30 Z"/>
+    <!-- Dark O-frame (even-odd: full canvas minus inner rect) -->
+    <path
+        android:fillColor="#211E1E"
+        android:fillType="evenOdd"
+        android:pathData="M36,10 H12 V38 H36 V10 Z M48,48 H0 V0 H48 V48 Z" />
+    <!-- Light inner rectangle -->
+    <path
+        android:fillColor="#CFCECD"
+        android:pathData="M12,19 H36 V38 H12 Z" />
 </vector>
