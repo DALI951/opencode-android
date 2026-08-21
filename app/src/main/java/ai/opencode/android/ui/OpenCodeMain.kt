@@ -140,7 +140,8 @@ fun OpenCodeMain(
                                 onSetAgent = { viewModel.setAgent(it) },
                                 onSelectModel = { provider, model -> viewModel.selectModel(provider, model) },
                                 onSelectTheme = { theme -> viewModel.selectTheme(theme) },
-                                onDismissPicker = { viewModel.dismissPicker() }
+                                onDismissPicker = { viewModel.dismissPicker() },
+                                onBrowseSessions = { currentScreen = Screen.Sessions }
                             )
                         }
                         is Screen.Sessions -> {

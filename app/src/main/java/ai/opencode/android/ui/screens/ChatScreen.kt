@@ -79,7 +79,8 @@ fun ChatScreen(
     onSetAgent: (String) -> Unit,
     onSelectModel: (String, String) -> Unit,
     onSelectTheme: (String) -> Unit,
-    onDismissPicker: () -> Unit
+    onDismissPicker: () -> Unit,
+    onBrowseSessions: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -97,7 +98,11 @@ fun ChatScreen(
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize().imePadding()) {
             if (uiState.currentSessionId == null) {
-                WelcomeScreen(onNewSession = onNewSession)
+                WelcomeScreen(
+                    onNewSession = onNewSession,
+                    onBrowseSessions = onBrowseSessions,
+                    serverVersion = uiState.serverVersion
+                )
             } else {
                 LazyColumn(
                     state = listState,
@@ -480,12 +485,16 @@ fun SlashCommandMenu(commands: List<SlashCommand>, onSelect: (SlashCommand) -> U
 }
 
 @Composable
-fun WelcomeScreen(onNewSession: () -> Unit) {
+fun WelcomeScreen(onNewSession: () -> Unit, onBrowseSessions: () -> Unit = {}, serverVersion: String? = null) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(48.dp))
+
         Text(
             text = "opencode",
             style = TextStyle(
@@ -495,16 +504,150 @@ fun WelcomeScreen(onNewSession: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground
             )
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "AI Coding Agent",
             style = TextStyle(
                 fontFamily = MonoFontFamily,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
+        if (serverVersion != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Connected \u2022 v$serverVersion",
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            )
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Setup Checklist",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                SetupStep(
+                    number = "1",
+                    title = "Install Termux",
+                    detail = "From F-Droid (not Play Store)",
+                    done = true
+                )
+                SetupStep(
+                    number = "2",
+                    title = "Install Ubuntu/proot",
+                    detail = "pkg install proot-distro && proot-distro install ubuntu",
+                    done = true
+                )
+                SetupStep(
+                    number = "3",
+                    title = "Install OpenCode",
+                    detail = "npm i -g opencode@latest",
+                    done = true
+                )
+                SetupStep(
+                    number = "4",
+                    title = "Run the server",
+                    detail = "opencode serve --port 4096",
+                    done = true
+                )
+                SetupStep(
+                    number = "5",
+                    title = "Configure credentials",
+                    detail = "Set OPENCODE_SERVER_PASSWORD env var",
+                    done = true
+                )
+                SetupStep(
+                    number = "6",
+                    title = "Connect this app",
+                    detail = "Settings \u2192 set host/port/password",
+                    done = true
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Slash Commands",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                CommandHint("/model", "Switch AI model")
+                CommandHint("/theme", "Change theme")
+                CommandHint("/compact", "Compact session context")
+                CommandHint("/abort", "Stop current generation")
+                CommandHint("/cost", "Show session cost")
+                CommandHint("/diff", "Show file changes")
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Type / in the input to see all commands",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Tips",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TipItem("Use the agent picker (build, plan, deepsearch, etc.) to switch agents")
+                TipItem("File diffs appear when the agent modifies your code")
+                TipItem("Grant or deny tool permissions from the dialog that appears")
+                TipItem("Long-press reasoning blocks to expand thinking steps")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+
         Button(
             onClick = onNewSession,
             modifier = Modifier.fillMaxWidth(),
@@ -524,6 +667,128 @@ fun WelcomeScreen(onNewSession: () -> Unit) {
                 )
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = onBrowseSessions,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                "Browse Sessions",
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 14.sp
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun SetupStep(number: String, title: String, detail: String, done: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            modifier = Modifier.size(20.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = if (done) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = "\u2713",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            )
+            Text(
+                text = detail,
+                style = TextStyle(
+                    fontFamily = MonoFontFamily,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun CommandHint(cmd: String, description: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = cmd,
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = description,
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+fun TipItem(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = "\u2022 ",
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+        Text(
+            text = text,
+            style = TextStyle(
+                fontFamily = MonoFontFamily,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
     }
 }
 
