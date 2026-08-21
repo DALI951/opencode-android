@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.name }}
 
     steps:
       - name: Checkout code
@@ -27,12 +29,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Build Release APK (unsigned)
-        run: ./gradlew assembleRelease
-
       - name: Get version name
         id: version
         run: |
@@ -40,9 +36,14 @@ jobs:
           echo "name=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build Release APK (unsigned)
+        run: ./gradlew assembleRelease
+
       - name: Sign Release APK
         run: |
-          # Generate a signing key
           keytool -genkeypair \
             -v \
             -keystore release-key.jks \
@@ -54,7 +55,6 @@ jobs:
             -keypass opencode123 \
             -dname "CN=OpenCode, OU=Dev, O=OpenCode, L=Unknown, ST=Unknown, C=US"
 
-          # Find the unsigned release APK
           UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*-unsigned.apk" | head -1)
           echo "Found unsigned APK: $UNSIGNED_APK"
 
@@ -64,14 +64,11 @@ jobs:
             exit 1
           fi
 
-          # Find build tools
           BUILD_TOOLS=$(ls ${ANDROID_HOME}/build-tools/ | sort -V | tail -1)
           echo "Using build tools: $BUILD_TOOLS"
 
-          # Zipalign
           ${ANDROID_HOME}/build-tools/$BUILD_TOOLS/zipalign -v -p 4 "$UNSIGNED_APK" aligned.apk
 
-          # Sign with apksigner
           ${ANDROID_HOME}/build-tools/$BUILD_TOOLS/apksigner sign \
             --ks release-key.jks \
             --ks-pass pass:opencode123 \
@@ -80,7 +77,7 @@ jobs:
             --out "opencode-android-v${{ steps.version.outputs.name }}.apk" \
             aligned.apk
 
-          echo "Signed APK created: opencode-android-v${{ steps.version.outputs.name }}.apk"
+          echo "Signed APK created"
           ls -la "opencode-android-v${{ steps.version.outputs.name }}.apk"
 
       - name: Upload Debug APK
@@ -92,7 +89,7 @@ jobs:
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: opencode-release-v${{ steps.version.outputs.name }}
+          name: "opencode-release-v${{ steps.version.outputs.name }}"
           path: "opencode-android-v${{ steps.version.outputs.name }}.apk"
 
   release:
@@ -103,11 +100,15 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Get version name
         id: version
         run: |
           VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
           echo "name=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
       - name: Download Debug APK
         uses: actions/download-artifact@v4
