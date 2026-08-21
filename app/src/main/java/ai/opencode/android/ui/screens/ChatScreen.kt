@@ -870,31 +870,35 @@ fun WelcomeScreen(
 
 @Composable
 fun SetupStep(number: String, title: String, detail: String) {
-    Row(
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.Top
+            .padding(vertical = 6.dp)
     ) {
-        Surface(
-            modifier = Modifier.size(20.dp),
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
+        Row(
+            verticalAlignment = Alignment.Top
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = number,
-                    style = TextStyle(
-                        fontFamily = MonoFontFamily,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            Surface(
+                modifier = Modifier.size(20.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = number,
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
                     )
-                )
+                }
             }
-        }
-        Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = title,
                 style = TextStyle(
@@ -904,14 +908,58 @@ fun SetupStep(number: String, title: String, detail: String) {
                     color = MaterialTheme.colorScheme.onBackground
                 )
             )
-            Text(
-                text = detail,
-                style = TextStyle(
-                    fontFamily = MonoFontFamily,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("command", detail)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "Copied!", Toast.LENGTH_SHORT).show()
+                    copied = true
+                },
+            shape = RoundedCornerShape(6.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$ ",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 )
-            )
+                Text(
+                    text = detail,
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                    contentDescription = "Copy",
+                    tint = if (copied) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+        if (copied) {
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(2000)
+                copied = false
+            }
         }
     }
 }

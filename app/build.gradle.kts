@@ -13,8 +13,8 @@ android {
         applicationId = "ai.opencode.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.0.18"
+        versionCode = 20
+        versionName = "1.0.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -27,8 +27,8 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
