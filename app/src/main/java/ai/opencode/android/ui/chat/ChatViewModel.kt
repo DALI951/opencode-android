@@ -19,13 +19,12 @@ import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
 
 class ChatViewModel(
-    application: Application,
     private val connectionManager: ConnectionManager = AppContainer.connectionManager
-) : AndroidViewModel(application) {
+) : AndroidViewModel(Application()) {
 
     private val api get() = connectionManager.api
     private val json get() = connectionManager.json
-    private val updateChecker = UpdateChecker(application)
+    private val updateChecker by lazy { UpdateChecker(getApplication()) }
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -533,8 +532,9 @@ class ChatViewModel(
     private fun checkForUpdate() {
         viewModelScope.launch {
             try {
-                val currentVersion = application.packageManager
-                    .getPackageInfo(application.packageName, 0).versionName ?: "1.0.0"
+                val app = getApplication<Application>()
+                val currentVersion = app.packageManager
+                    .getPackageInfo(app.packageName, 0).versionName ?: "1.0.0"
                 val update = updateChecker.checkForUpdate(currentVersion)
                 if (update != null) {
                     _uiState.update { it.copy(pendingUpdate = update) }
@@ -575,9 +575,8 @@ class ChatViewModel(
     companion object {
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>, extras: androidx.lifecycle.viewmodel.CreationExtras): T {
-                val application = extras[androidx.lifecycle.viewmodel.ApplicationViewModelProvider.APPLICATION_KEY] as Application
-                return ChatViewModel(application) as T
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                return ChatViewModel() as T
             }
         }
     }
