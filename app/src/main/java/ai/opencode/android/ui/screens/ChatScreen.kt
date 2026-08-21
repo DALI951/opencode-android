@@ -415,7 +415,7 @@ fun ChatInput(
     currentAgent: String = "build",
     onSetAgent: (String) -> Unit = {}
 ) {
-    val agents = listOf("build", "plan", "code", "task")
+    val agents = listOf("build", "plan", "deepsearch", "inspector", "interrogator", "therapist")
     var agentMenuExpanded by remember { mutableStateOf(false) }
 
     Surface(
