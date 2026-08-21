@@ -2,6 +2,7 @@ package ai.opencode.android.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -163,8 +164,8 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                 is MarkdownSegment.CodeBlock -> {
                     var copied by remember { mutableStateOf(false) }
                     Surface(
-                        shape = MaterialTheme.shapes.extraSmall,
-                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Column {
@@ -179,9 +180,9 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                                         style = TextStyle(
                                             fontFamily = MonoFontFamily,
                                             fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                         ),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 } else {
                                     Spacer(modifier = Modifier.weight(1f))
@@ -194,13 +195,13 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                                         Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                                         copied = true
                                     },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
                                         if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
                                         contentDescription = "Copy code",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        modifier = Modifier.size(14.dp)
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 if (copied) {
@@ -218,7 +219,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                                     lineHeight = 18.sp,
                                     color = MaterialTheme.colorScheme.onBackground
                                 ),
-                                modifier = Modifier.padding(8.dp)
+                                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
                             )
                         }
                     }
