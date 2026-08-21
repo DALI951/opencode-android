@@ -166,11 +166,15 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     ) {
                         Column {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -181,28 +185,53 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                                             fontFamily = MonoFontFamily,
                                             fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        ),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
                                     )
                                 } else {
                                     Spacer(modifier = Modifier.weight(1f))
                                 }
-                                IconButton(
+                                Surface(
                                     onClick = {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         val clip = ClipData.newPlainText("code", segment.code)
                                         clipboard.setPrimaryClip(clip)
-                                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                                         copied = true
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (copied)
+                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                                    else
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    modifier = Modifier.height(24.dp)
                                 ) {
-                                    Icon(
-                                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                                        contentDescription = "Copy code",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                            contentDescription = null,
+                                            tint = if (copied)
+                                                MaterialTheme.colorScheme.tertiary
+                                            else
+                                                MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(
+                                            text = if (copied) "Copied" else "Copy",
+                                            style = TextStyle(
+                                                fontFamily = MonoFontFamily,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (copied)
+                                                    MaterialTheme.colorScheme.tertiary
+                                                else
+                                                    MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    }
                                 }
                                 if (copied) {
                                     LaunchedEffect(Unit) {
@@ -245,6 +274,26 @@ sealed class MarkdownSegment {
     data class CodeBlock(val code: String, val language: String = "") : MarkdownSegment()
 }
 
+private val SHELL_COMMANDS = setOf(
+    "npm", "npx", "yarn", "pnpm", "node",
+    "git", "gh",
+    "apt", "apt-get", "dpkg", "pkg",
+    "proot-distro",
+    "curl", "wget",
+    "chmod", "mkdir", "cp", "mv", "rm", "ls", "cat", "grep", "find", "sed", "awk",
+    "export", "source", "echo",
+    "tar", "unzip", "zip",
+    "pip", "python", "python3",
+    "java", "javac",
+    "docker", "docker-compose",
+    "make", "cmake",
+    "sudo", "su",
+    "ssh", "scp", "rsync",
+    "systemctl", "service",
+    "opencode",
+    "termux-setup-storage"
+)
+
 fun parseMarkdownSegments(text: String): List<MarkdownSegment> {
     val segments = mutableListOf<MarkdownSegment>()
     val lines = text.split("\n")
@@ -253,12 +302,15 @@ fun parseMarkdownSegments(text: String): List<MarkdownSegment> {
 
     while (i < lines.size) {
         val line = lines[i]
-        if (line.trimStart().startsWith("```")) {
+        val trimmed = line.trimStart()
+
+        // Explicit code block: ``` ... ```
+        if (trimmed.startsWith("```")) {
             if (currentText.isNotBlank()) {
                 segments.add(MarkdownSegment.Text(currentText.toString().trim()))
                 currentText.clear()
             }
-            val language = line.trimStart().removePrefix("```").trim()
+            val language = trimmed.removePrefix("```").trim()
             val codeLines = mutableListOf<String>()
             i++
             while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
@@ -266,9 +318,30 @@ fun parseMarkdownSegments(text: String): List<MarkdownSegment> {
                 i++
             }
             segments.add(MarkdownSegment.CodeBlock(codeLines.joinToString("\n"), language))
-        } else {
-            currentText.appendLine(line)
+            i++
+            continue
         }
+
+        // Detect command lines:
+        // - Starts with $ or #
+        // - Starts with a known shell command
+        // - Is a multi-word line where first word is a known command
+        if (isCommandLine(trimmed)) {
+            if (currentText.isNotBlank()) {
+                segments.add(MarkdownSegment.Text(currentText.toString().trim()))
+                currentText.clear()
+            }
+            // Collect consecutive command lines
+            val codeLines = mutableListOf<String>()
+            while (i < lines.size && isCommandLine(lines[i].trimStart())) {
+                codeLines.add(lines[i].trimStart())
+                i++
+            }
+            segments.add(MarkdownSegment.CodeBlock(codeLines.joinToString("\n"), "shell"))
+            continue
+        }
+
+        currentText.appendLine(line)
         i++
     }
 
@@ -279,4 +352,18 @@ fun parseMarkdownSegments(text: String): List<MarkdownSegment> {
         segments.add(MarkdownSegment.Text(text))
     }
     return segments
+}
+
+private fun isCommandLine(trimmed: String): Boolean {
+    if (trimmed.isEmpty()) return false
+
+    // Starts with $ or # (prompt prefix)
+    if (trimmed.startsWith("$ ") || trimmed.startsWith("# ")) return true
+
+    val firstWord = trimmed.split("\\s+".toRegex()).firstOrNull() ?: return false
+
+    // Remove common prefixes like >, |, etc
+    val clean = firstWord.removePrefix(">").removePrefix("|").removePrefix(":")
+
+    return clean.lowercase() in SHELL_COMMANDS
 }
