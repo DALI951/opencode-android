@@ -137,7 +137,10 @@ fun OpenCodeMain(
                                 onUpdateInput = { viewModel.updateInput(it) },
                                 onAbort = { viewModel.abortSession() },
                                 onPermissionResponse = { allow -> viewModel.respondPermission(allow) },
-                                onSetAgent = { viewModel.setAgent(it) }
+                                onSetAgent = { viewModel.setAgent(it) },
+                                onSelectModel = { provider, model -> viewModel.selectModel(provider, model) },
+                                onSelectTheme = { theme -> viewModel.selectTheme(theme) },
+                                onDismissPicker = { viewModel.dismissPicker() }
                             )
                         }
                         is Screen.Sessions -> {

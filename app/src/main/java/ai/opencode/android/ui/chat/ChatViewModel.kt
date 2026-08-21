@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import ai.opencode.android.data.api.ConnectionManager
 import ai.opencode.android.data.api.EventEnvelope
+import ai.opencode.android.data.api.ModelInfo
 import ai.opencode.android.data.model.*
 import ai.opencode.android.di.AppContainer
 import kotlinx.coroutines.Job
@@ -122,21 +123,23 @@ class ChatViewModel(
         } else if (message is UserMessage && message.sessionID == currentSessionId) {
             _uiState.update { state ->
                 val messages = state.messages.toMutableList()
-                // Check if there's a temp UserMessage to replace
-                val tempIdx = messages.indexOfFirst { it is UserMessage && it.id.startsWith("temp-") }
-                if (tempIdx >= 0) {
-                    // Transfer display text from temp to real message
-                    val tempMsg = messages[tempIdx] as UserMessage
-                    val displayText = state.userInputTexts[tempMsg.id]
-                    messages[tempIdx] = message
-                    val newTexts = if (displayText != null) {
-                        state.userInputTexts + (message.id to displayText)
-                    } else state.userInputTexts
-                    state.copy(messages = messages, userInputTexts = newTexts)
-                } else {
-                    val idx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
-                    if (idx >= 0) messages[idx] = message else messages.add(message)
+                val existingIdx = messages.indexOfFirst { it is UserMessage && it.id == message.id }
+                if (existingIdx >= 0) {
+                    messages[existingIdx] = message
                     state.copy(messages = messages)
+                } else {
+                    val tempIdx = messages.indexOfFirst { it is UserMessage && it.id.startsWith("temp-") }
+                    if (tempIdx >= 0) {
+                        val tempMsg = messages[tempIdx] as UserMessage
+                        val displayText = state.userInputTexts[tempMsg.id]
+                        messages[tempIdx] = message
+                        val newTexts = if (displayText != null) {
+                            state.userInputTexts + (message.id to displayText)
+                        } else state.userInputTexts
+                        state.copy(messages = messages, userInputTexts = newTexts)
+                    } else {
+                        state.copy(messages = messages)
+                    }
                 }
             }
         }
@@ -176,6 +179,7 @@ class ChatViewModel(
                     sessionStatus = SessionStatus.Idle,
                     isGenerating = false,
                     streamingText = "",
+                    streamingReasoning = "",
                     currentToolCalls = emptyList()
                 )
             }
@@ -274,7 +278,7 @@ class ChatViewModel(
                     val idx = existingParts.indexOfFirst { it.id == part.id }
                     val updatedPart = part.copy(text = sb.toString())
                     if (idx >= 0) existingParts[idx] = updatedPart else existingParts.add(updatedPart)
-                    state.copy(parts = existingParts)
+                    state.copy(parts = existingParts, streamingReasoning = sb.toString())
                 }
             }
 
@@ -384,6 +388,12 @@ class ChatViewModel(
         val sessionId = currentSessionId ?: return
         if (text.isBlank()) return
 
+        if (text.startsWith("/")) {
+            handleSlashCommand(text.trim())
+            _uiState.update { it.copy(currentInput = "") }
+            return
+        }
+
         val agent = _uiState.value.currentAgent
         val msgId = "temp-${System.currentTimeMillis()}"
         val userMessage = UserMessage(
@@ -400,6 +410,7 @@ class ChatViewModel(
                 isGenerating = true,
                 currentInput = "",
                 streamingText = "",
+                streamingReasoning = "",
                 currentToolCalls = emptyList(),
                 userInputTexts = state.userInputTexts + (msgId to text)
             )
@@ -413,6 +424,65 @@ class ChatViewModel(
                 }
             )
         }
+    }
+
+    private fun handleSlashCommand(text: String) {
+        val cmd = text.split(" ").first().lowercase()
+        when (cmd) {
+            "/model" -> {
+                viewModelScope.launch {
+                    api.listModels().fold(
+                        onSuccess = { models ->
+                            _uiState.update { it.copy(availableModels = models, showModelPicker = true) }
+                        },
+                        onFailure = { e ->
+                            _uiState.update { it.copy(error = "Failed to load models: ${e.message}") }
+                        }
+                    )
+                }
+            }
+            "/theme" -> {
+                _uiState.update { it.copy(showThemePicker = true) }
+            }
+            "/abort" -> {
+                abortSession()
+            }
+            "/compact", "/undo", "/redo", "/clear", "/diff", "/log", "/cost", "/init" -> {
+                sendSlashCommandToServer(text)
+            }
+            else -> {
+                sendSlashCommandToServer(text)
+            }
+        }
+    }
+
+    private fun sendSlashCommandToServer(text: String) {
+        val sessionId = currentSessionId ?: return
+        viewModelScope.launch {
+            api.sendMessageAsync(sessionId, text, "build").fold(
+                onSuccess = { },
+                onFailure = { e -> _uiState.update { it.copy(error = "Command failed: ${e.message}") } }
+            )
+        }
+    }
+
+    fun selectModel(providerID: String, modelID: String) {
+        _uiState.update { it.copy(showModelPicker = false, availableModels = emptyList()) }
+        viewModelScope.launch {
+            val sessionId = currentSessionId ?: return@launch
+            api.setSessionModel(sessionId, providerID, modelID).fold(
+                onSuccess = { },
+                onFailure = { e -> _uiState.update { it.copy(error = "Failed to set model: ${e.message}") } }
+            )
+        }
+    }
+
+    fun selectTheme(theme: String) {
+        _uiState.update { it.copy(showThemePicker = false) }
+    }
+
+    fun dismissPicker() {
+        _uiState.update { it.copy(showModelPicker = false, showThemePicker = false, availableModels = emptyList()) }
     }
 
     fun abortSession() {
@@ -474,6 +544,9 @@ data class ChatUiState(
     val currentSessionId: String? = null,
     val currentAgent: String = "build",
     val availableAgents: List<String> = listOf("build", "plan"),
+    val availableModels: List<ModelInfo> = emptyList(),
+    val showModelPicker: Boolean = false,
+    val showThemePicker: Boolean = false,
     val messages: List<Any> = emptyList(),
     val parts: List<Part> = emptyList(),
     val currentDiffs: List<FileDiff> = emptyList(),
@@ -485,6 +558,7 @@ data class ChatUiState(
     val pendingPermission: PermissionInfo? = null,
     val error: String? = null,
     val streamingText: String = "",
+    val streamingReasoning: String = "",
     val currentToolCalls: List<ToolCallPartData> = emptyList(),
     val userInputTexts: Map<String, String> = emptyMap()
 )

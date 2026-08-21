@@ -205,6 +205,32 @@ class OpenCodeApi(
         }
     }
 
+    suspend fun listModels(): Result<List<ModelInfo>> {
+        return rawRequest("GET", "/config").map { body ->
+            val config = json.parseToJsonElement(body).jsonObject
+            val providers = config["provider"]?.jsonObject ?: return@map emptyList()
+            val models = mutableListOf<ModelInfo>()
+            providers.forEach { (providerName, providerValue) ->
+                val providerObj = providerValue.jsonObject
+                val apiModels = providerObj["api"]?.jsonObject?.get("models")?.jsonArray
+                apiModels?.forEach { modelElement ->
+                    val modelObj = modelElement.jsonObject
+                    val modelId = modelObj["id"]?.jsonPrimitive?.contentOrNull
+                    if (modelId != null) {
+                        models.add(
+                            ModelInfo(
+                                providerID = providerName,
+                                modelID = modelId,
+                                name = modelObj["name"]?.jsonPrimitive?.contentOrNull ?: modelId
+                            )
+                        )
+                    }
+                }
+            }
+            models
+        }
+    }
+
     // SSE Events
     fun subscribeEvents(): Flow<EventEnvelope> {
         val url = "$baseUrl/event"
@@ -254,6 +280,14 @@ class OpenCodeApi(
         return rawRequest("POST", "/session/$sessionId/permissions/$permissionId", body).map { true }
     }
 
+    suspend fun setSessionModel(sessionId: String, providerID: String, modelID: String): Result<Boolean> {
+        val body = buildJsonObject {
+            put("modelID", modelID)
+            put("providerID", providerID)
+        }.toString()
+        return rawRequest("PATCH", "/session/$sessionId/model", body).map { true }
+    }
+
     class ApiException(val code: Int, val responseBody: String) :
         Exception("API error $code: $responseBody")
 }
@@ -267,4 +301,10 @@ data class AgentInfo(
     val id: String,
     val description: String,
     val mode: String
+)
+
+data class ModelInfo(
+    val providerID: String,
+    val modelID: String,
+    val name: String
 )

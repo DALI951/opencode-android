@@ -54,6 +54,19 @@ val SLASH_COMMANDS = listOf(
     SlashCommand("/theme", "Change the theme"),
 )
 
+val AVAILABLE_THEMES = listOf(
+    "default" to "Default Dark",
+    "dark" to "Dark",
+    "light" to "Light",
+    "catppuccin" to "Catppuccin Mocha",
+    "dracula" to "Dracula",
+    "nord" to "Nord",
+    "tokyo-night" to "Tokyo Night",
+    "gruvbox" to "Gruvbox",
+    "rose-pine" to "Rose Pine",
+    "kanagawa" to "Kanagawa",
+)
+
 @Composable
 fun ChatScreen(
     uiState: ChatUiState,
@@ -63,7 +76,10 @@ fun ChatScreen(
     onUpdateInput: (String) -> Unit,
     onAbort: () -> Unit,
     onPermissionResponse: (Boolean) -> Unit,
-    onSetAgent: (String) -> Unit
+    onSetAgent: (String) -> Unit,
+    onSelectModel: (String, String) -> Unit,
+    onSelectTheme: (String) -> Unit,
+    onDismissPicker: () -> Unit
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -124,6 +140,7 @@ fun ChatScreen(
                         item(key = "streaming") {
                             StreamingBlock(
                                 streamingText = uiState.streamingText,
+                                streamingReasoning = uiState.streamingReasoning,
                                 toolCalls = uiState.currentToolCalls
                             )
                         }
@@ -155,12 +172,108 @@ fun ChatScreen(
                             isGenerating = uiState.isGenerating,
                             onAbort = onAbort,
                             currentAgent = uiState.currentAgent,
-                            onSetAgent = onSetAgent
+                            onSetAgent = onSetAgent,
+                            agents = uiState.availableAgents
                         )
                     }
                 }
             }
         }
+    }
+
+    if (uiState.showModelPicker) {
+        AlertDialog(
+            onDismissRequest = onDismissPicker,
+            title = {
+                Text(
+                    "Select Model",
+                    style = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    uiState.availableModels.forEach { model ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectModel(model.providerID, model.modelID) }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = model.modelID,
+                                    style = TextStyle(
+                                        fontFamily = MonoFontFamily,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = model.providerID,
+                                    style = TextStyle(
+                                        fontFamily = MonoFontFamily,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    }
+                    if (uiState.availableModels.isEmpty()) {
+                        Text(
+                            "No models found in config",
+                            style = TextStyle(fontFamily = MonoFontFamily, fontSize = 13.sp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismissPicker) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (uiState.showThemePicker) {
+        AlertDialog(
+            onDismissRequest = onDismissPicker,
+            title = {
+                Text(
+                    "Select Theme",
+                    style = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    AVAILABLE_THEMES.forEach { (id, name) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectTheme(id) }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = name,
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 14.sp
+                                )
+                            )
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismissPicker) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -270,13 +383,23 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
 }
 
 @Composable
-fun StreamingBlock(streamingText: String, toolCalls: List<ToolCallPartData>) {
+fun StreamingBlock(streamingText: String, streamingReasoning: String, toolCalls: List<ToolCallPartData>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .padding(start = 4.dp)
     ) {
+        if (streamingReasoning.isNotBlank()) {
+            ReasoningItem(
+                part = ReasoningPartData(
+                    id = "streaming-reasoning",
+                    sessionID = "",
+                    messageID = "",
+                    text = streamingReasoning
+                )
+            )
+        }
         toolCalls.forEach { tool ->
             ToolCallItem(part = tool)
         }
@@ -413,9 +536,9 @@ fun ChatInput(
     isGenerating: Boolean,
     onAbort: () -> Unit,
     currentAgent: String = "build",
-    onSetAgent: (String) -> Unit = {}
+    onSetAgent: (String) -> Unit = {},
+    agents: List<String> = listOf("build", "plan")
 ) {
-    val agents = uiState.availableAgents.ifEmpty { listOf("build", "plan") }
     var agentMenuExpanded by remember { mutableStateOf(false) }
 
     Surface(
