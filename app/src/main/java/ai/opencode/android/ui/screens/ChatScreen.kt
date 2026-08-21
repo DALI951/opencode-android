@@ -412,36 +412,41 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
             }
         }
         if (allText.length > 5) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .fillMaxWidth()
                     .clickable {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("opencode", allText)
                         clipboard.setPrimaryClip(clip)
                         Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                    }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    },
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.primary
             ) {
-                Icon(
-                    Icons.Filled.ContentCopy,
-                    contentDescription = "Copy",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    text = "Copy response",
-                    style = TextStyle(
-                        fontFamily = MonoFontFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Filled.ContentCopy,
+                        contentDescription = "Copy",
+                        tint = MaterialTheme.colorScheme.background,
+                        modifier = Modifier.size(16.dp)
                     )
-                )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Copy full response",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.background
+                        )
+                    )
+                }
             }
         }
         if (tokenUsage != null && (tokenUsage.input > 0 || tokenUsage.output > 0)) {

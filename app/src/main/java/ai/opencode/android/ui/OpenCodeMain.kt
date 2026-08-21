@@ -24,6 +24,8 @@ import ai.opencode.android.ui.screens.SessionListScreen
 import ai.opencode.android.ui.screens.SettingsScreen
 import ai.opencode.android.ui.screens.DiffViewerScreen
 import ai.opencode.android.ui.screens.MonoFontFamily
+import ai.opencode.android.BuildConfig
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +33,12 @@ fun OpenCodeMain(
     viewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val appVersion = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+        } catch (e: Exception) { "?" }
+    }
 
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Chat) }
 
@@ -52,6 +60,15 @@ fun OpenCodeMain(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "app v$appVersion",
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.primary
                             )
                         )
                         if (uiState.serverVersion != null) {
