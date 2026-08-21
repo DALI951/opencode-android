@@ -1,12 +1,15 @@
 package ai.opencode.android.ui.chat
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import ai.opencode.android.data.api.ConnectionManager
 import ai.opencode.android.data.api.EventEnvelope
 import ai.opencode.android.data.api.ModelInfo
+import ai.opencode.android.data.api.UpdateChecker
+import ai.opencode.android.data.api.UpdateInfo
 import ai.opencode.android.data.model.*
 import ai.opencode.android.di.AppContainer
 import kotlinx.coroutines.Job
@@ -16,11 +19,13 @@ import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
 
 class ChatViewModel(
+    application: Application,
     private val connectionManager: ConnectionManager = AppContainer.connectionManager
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val api get() = connectionManager.api
     private val json get() = connectionManager.json
+    private val updateChecker = UpdateChecker(application)
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -30,6 +35,7 @@ class ChatViewModel(
     private val streamingText = ConcurrentHashMap<String, StringBuilder>()
 
     init {
+        checkForUpdate()
         if (connectionManager.password.isNotBlank()) {
             connectToServer()
         }
@@ -524,6 +530,43 @@ class ChatViewModel(
     fun updateInput(text: String) { _uiState.update { it.copy(currentInput = text) } }
     fun setAgent(agent: String) { _uiState.update { it.copy(currentAgent = agent) } }
 
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            try {
+                val currentVersion = application.packageManager
+                    .getPackageInfo(application.packageName, 0).versionName ?: "1.0.0"
+                val update = updateChecker.checkForUpdate(currentVersion)
+                if (update != null) {
+                    _uiState.update { it.copy(pendingUpdate = update) }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Update check failed", e)
+            }
+        }
+    }
+
+    fun downloadUpdate() {
+        val update = _uiState.value.pendingUpdate ?: return
+        _uiState.update { it.copy(isDownloadingUpdate = true) }
+        viewModelScope.launch {
+            updateChecker.downloadAndInstall(update).fold(
+                onSuccess = { _uiState.update { it.copy(isDownloadingUpdate = false, pendingUpdate = null) } },
+                onFailure = { e ->
+                    _uiState.update {
+                        it.copy(
+                            isDownloadingUpdate = false,
+                            error = "Update download failed: ${e.message}"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun dismissUpdate() {
+        _uiState.update { it.copy(pendingUpdate = null) }
+    }
+
     override fun onCleared() {
         super.onCleared()
         eventSubscription?.cancel()
@@ -532,7 +575,10 @@ class ChatViewModel(
     companion object {
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel() as T
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>, extras: androidx.lifecycle.viewmodel.CreationExtras): T {
+                val application = extras[androidx.lifecycle.viewmodel.ApplicationViewModelProvider.APPLICATION_KEY] as Application
+                return ChatViewModel(application) as T
+            }
         }
     }
 }
@@ -562,5 +608,7 @@ data class ChatUiState(
     val streamingText: String = "",
     val streamingReasoning: String = "",
     val currentToolCalls: List<ToolCallPartData> = emptyList(),
-    val userInputTexts: Map<String, String> = emptyMap()
+    val userInputTexts: Map<String, String> = emptyMap(),
+    val pendingUpdate: UpdateInfo? = null,
+    val isDownloadingUpdate: Boolean = false
 )

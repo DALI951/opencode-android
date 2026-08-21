@@ -244,6 +244,58 @@ fun OpenCodeMain(
             Text(error, style = TextStyle(fontFamily = MonoFontFamily))
         }
     }
+
+    // Update dialog
+    uiState.pendingUpdate?.let { update ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUpdate() },
+            title = {
+                Text(
+                    "Update Available",
+                    style = TextStyle(fontFamily = MonoFontFamily, fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "v${update.versionName} is available",
+                        style = TextStyle(fontFamily = MonoFontFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (update.releaseNotes.isNotBlank()) {
+                        Text(
+                            text = update.releaseNotes.take(500),
+                            style = TextStyle(fontFamily = MonoFontFamily, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.downloadUpdate() },
+                    enabled = !uiState.isDownloadingUpdate,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    if (uiState.isDownloadingUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Downloading...", style = TextStyle(fontFamily = MonoFontFamily))
+                    } else {
+                        Text("Update", style = TextStyle(fontFamily = MonoFontFamily))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissUpdate() }) {
+                    Text("Skip", style = TextStyle(fontFamily = MonoFontFamily))
+                }
+            }
+        )
+    }
 }
 
 sealed class Screen {

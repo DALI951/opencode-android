@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -32,8 +33,42 @@ import ai.opencode.android.data.model.*
 import ai.opencode.android.ui.chat.ChatUiState
 import ai.opencode.android.ui.components.*
 import kotlinx.coroutines.launch
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Check
 
 val MonoFontFamily = FontFamily.Monospace
+
+@Composable
+fun CopyButton(text: String, context: Context) {
+    var copied by remember { mutableStateOf(false) }
+    IconButton(
+        onClick = {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("opencode", text)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+            copied = true
+        },
+        modifier = Modifier.size(28.dp)
+    ) {
+        Icon(
+            if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+            contentDescription = "Copy",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.size(14.dp)
+        )
+    }
+    if (copied) {
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(2000)
+            copied = false
+        }
+    }
+}
 
 data class SlashCommand(
     val name: String,
@@ -344,6 +379,9 @@ fun UserMessageRow(text: String) {
 
 @Composable
 fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
+    val context = LocalContext.current
+    val allText = parts.filterIsInstance<TextPartData>().joinToString("\n") { it.text.trim() }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -354,15 +392,21 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
             when (part) {
                 is TextPartData -> {
                     if (part.text.isNotBlank()) {
-                        Text(
-                            text = part.text.trim(),
-                            style = TextStyle(
-                                fontFamily = MonoFontFamily,
-                                fontSize = 14.sp,
-                                lineHeight = 22.sp,
-                                color = MaterialTheme.colorScheme.onBackground
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = part.text.trim(),
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 14.sp,
+                                    lineHeight = 22.sp,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                ),
+                                modifier = Modifier.weight(1f)
                             )
-                        )
+                            if (allText.length > 10) {
+                                CopyButton(text = allText, context = context)
+                            }
+                        }
                     }
                 }
                 is ReasoningPartData -> {
