@@ -206,7 +206,11 @@ fun OpenCodeMain(
                                 onReconnect = {
                                     viewModel.connectToServer()
                                     currentScreen = Screen.Chat
-                                }
+                                },
+                                onCheckAppUpdate = { viewModel.checkForUpdateManually() },
+                                onUpdateServer = { viewModel.updateOpenCodeServer() },
+                                onReconnectAfterUpdate = { viewModel.reconnectAfterServerUpdate() },
+                                serverUpdateStatus = uiState.serverUpdateStatus
                             )
                         }
                     }

@@ -567,6 +567,115 @@ class ChatViewModel(
         _uiState.update { it.copy(pendingUpdate = null) }
     }
 
+    fun checkForUpdateManually() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(serverUpdateStatus = "Checking for app updates...") }
+            try {
+                val app = getApplication<Application>()
+                val currentVersion = app.packageManager
+                    .getPackageInfo(app.packageName, 0).versionName ?: "1.0.0"
+                val update = updateChecker.checkForUpdate(currentVersion)
+                if (update != null) {
+                    _uiState.update { it.copy(pendingUpdate = update, serverUpdateStatus = null) }
+                } else {
+                    _uiState.update { it.copy(serverUpdateStatus = "App is up to date (v$currentVersion)") }
+                    viewModelScope.launch {
+                        kotlinx.coroutines.delay(3000)
+                        _uiState.update { it.copy(serverUpdateStatus = null) }
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(serverUpdateStatus = "Update check failed: ${e.message}") }
+            }
+        }
+    }
+
+    fun updateOpenCodeServer() {
+        val sessionId = currentSessionId
+        viewModelScope.launch {
+            _uiState.update { it.copy(serverUpdateStatus = "Creating update session...") }
+
+            val updateSessionId: String
+            try {
+                val session = api.createSession("OpenCode Server Update").getOrElse { e ->
+                    _uiState.update { it.copy(serverUpdateStatus = "Failed to create session: ${e.message}") }
+                    return@launch
+                }
+                updateSessionId = session.id
+            } catch (e: Exception) {
+                _uiState.update { it.copy(serverUpdateStatus = "Failed: ${e.message}") }
+                return@launch
+            }
+
+            _uiState.update { it.copy(serverUpdateStatus = "Updating OpenCode server... DO NOT close the app") }
+
+            try {
+                api.sendMessageAsync(
+                    updateSessionId,
+                    "Run this command exactly and wait for it to complete: npm i -g opencode@latest --force\n\nAfter it finishes, tell me the output. Do NOT restart the server.",
+                    "build"
+                ).getOrElse { e ->
+                    _uiState.update { it.copy(serverUpdateStatus = "Failed to send update command: ${e.message}") }
+                    return@launch
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(serverUpdateStatus = "Failed: ${e.message}") }
+                return@launch
+            }
+
+            _uiState.update { it.copy(serverUpdateStatus = "Update command sent. Waiting for completion...") }
+
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(30000)
+
+                try {
+                    val messages = api.listMessages(updateSessionId).getOrElse { emptyList() }
+                    val lastAssistant = messages.lastOrNull()?.first as? AssistantMessage
+                    if (lastAssistant != null) {
+                        val parts = messages.lastOrNull()?.second ?: emptyList()
+                        val text = parts.filterIsInstance<TextPartData>().joinToString("\n") { it.text }
+                        val success = text.contains("added", ignoreCase = true) ||
+                                      text.contains("updated", ignoreCase = true) ||
+                                      text.contains("up to date", ignoreCase = true) ||
+                                      text.contains("changed", ignoreCase = true)
+
+                        if (success) {
+                            _uiState.update { it.copy(
+                                serverUpdateStatus = "OpenCode updated! Server needs restart.\nRestart in Termux, then tap Reconnect."
+                            ) }
+                        } else {
+                            val snippet = text.takeLast(200)
+                            _uiState.update { it.copy(
+                                serverUpdateStatus = "Update completed. Check output:\n$snippet"
+                            ) }
+                        }
+                    } else {
+                        _uiState.update { it.copy(
+                            serverUpdateStatus = "Update still running. Wait a bit longer and check again."
+                        ) }
+                    }
+                } catch (e: Exception) {
+                    _uiState.update { it.copy(serverUpdateStatus = "Could not verify update: ${e.message}") }
+                }
+            }
+        }
+    }
+
+    fun reconnectAfterServerUpdate() {
+        _uiState.update { it.copy(serverUpdateStatus = "Reconnecting...") }
+        connectToServer()
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(5000)
+            if (_uiState.value.isConnected) {
+                _uiState.update { it.copy(serverUpdateStatus = "Connected! Server updated successfully.") }
+                kotlinx.coroutines.delay(3000)
+                _uiState.update { it.copy(serverUpdateStatus = null) }
+            } else {
+                _uiState.update { it.copy(serverUpdateStatus = "Could not reconnect. Make sure server is running.") }
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         eventSubscription?.cancel()
@@ -609,5 +718,6 @@ data class ChatUiState(
     val currentToolCalls: List<ToolCallPartData> = emptyList(),
     val userInputTexts: Map<String, String> = emptyMap(),
     val pendingUpdate: UpdateInfo? = null,
-    val isDownloadingUpdate: Boolean = false
+    val isDownloadingUpdate: Boolean = false,
+    val serverUpdateStatus: String? = null
 )

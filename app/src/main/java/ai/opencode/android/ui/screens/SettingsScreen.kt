@@ -5,22 +5,30 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ai.opencode.android.di.AppContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onReconnect: () -> Unit
+    onReconnect: () -> Unit,
+    onCheckAppUpdate: () -> Unit = {},
+    onUpdateServer: () -> Unit = {},
+    onReconnectAfterUpdate: () -> Unit = {},
+    serverUpdateStatus: String? = null
 ) {
     val connectionManager = AppContainer.connectionManager
 
@@ -93,7 +101,6 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -145,6 +152,125 @@ fun SettingsScreen(
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium
                     )
+                }
+            }
+
+            HorizontalDivider()
+
+            // === App Updates ===
+            Text(
+                text = "App Updates",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Update Android App",
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 13.sp,
+                            )
+                        )
+                        Text(
+                            text = "Checks GitHub for a newer version and installs it",
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onCheckAppUpdate) {
+                        Icon(Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Check")
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            // === Server Updates ===
+            Text(
+                text = "Server Updates",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Update OpenCode Server",
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 13.sp,
+                                )
+                            )
+                            Text(
+                                text = "Runs 'npm i -g opencode@latest' on the server",
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onUpdateServer,
+                            enabled = serverUpdateStatus == null
+                        ) {
+                            Icon(Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Update")
+                        }
+                    }
+
+                    serverUpdateStatus?.let { status ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = status,
+                                    style = TextStyle(
+                                        fontFamily = MonoFontFamily,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                if (status.contains("needs restart") || status.contains("Could not reconnect")) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = onReconnectAfterUpdate,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Reconnect")
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
