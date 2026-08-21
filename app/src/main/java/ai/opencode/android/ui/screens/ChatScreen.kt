@@ -76,7 +76,7 @@ fun ChatScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().imePadding()) {
             if (uiState.currentSessionId == null) {
                 WelcomeScreen(onNewSession = onNewSession)
             } else {
