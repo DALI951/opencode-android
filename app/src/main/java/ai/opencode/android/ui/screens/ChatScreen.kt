@@ -395,9 +395,7 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
                         Box(modifier = Modifier.fillMaxWidth()) {
                             MarkdownText(
                                 text = part.text.trim(),
-                                modifier = Modifier
-                                    .weight(1f, fill = false)
-                                    .fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth()
                             )
                             if (allText.length > 10) {
                                 Box(modifier = Modifier.align(Alignment.TopEnd)) {
