@@ -143,7 +143,7 @@ class OpenCodeApi(
         }
     }
 
-    suspend fun sendMessageAsync(sessionId: String, text: String): Result<Unit> {
+    suspend fun sendMessageAsync(sessionId: String, text: String, agent: String = "build"): Result<Unit> {
         val body = buildJsonObject {
             put("parts", buildJsonArray {
                 add(buildJsonObject {
@@ -151,6 +151,9 @@ class OpenCodeApi(
                     put("text", text)
                 })
             })
+            if (agent.isNotBlank()) {
+                put("agent", agent)
+            }
         }.toString()
         return rawRequest("POST", "/session/$sessionId/prompt_async", body).map { }
     }

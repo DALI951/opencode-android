@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
@@ -60,7 +62,8 @@ fun ChatScreen(
     onSelectSession: (String) -> Unit,
     onUpdateInput: (String) -> Unit,
     onAbort: () -> Unit,
-    onPermissionResponse: (Boolean) -> Unit
+    onPermissionResponse: (Boolean) -> Unit,
+    onSetAgent: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -93,8 +96,13 @@ fun ChatScreen(
                     ) { group ->
                         when (group) {
                             is MessageGroup.User -> {
-                                val displayText = uiState.userInputTexts[group.message.id]
-                                    ?: group.message.summary?.title
+                                var displayText = uiState.userInputTexts[group.message.id]
+                                if (displayText == null) displayText = group.message.summary?.title
+                                if (displayText == null) {
+                                    displayText = uiState.parts
+                                        .filter { it.messageID == group.message.id && it is TextPartData }
+                                        .joinToString("\n") { (it as TextPartData).text }
+                                }
                                 if (!displayText.isNullOrBlank()) {
                                     UserMessageRow(text = displayText)
                                 }
@@ -125,25 +133,29 @@ fun ChatScreen(
 
             if (uiState.currentSessionId != null) {
                 Box {
-                    ChatInput(
-                        input = uiState.currentInput,
-                        onInputChange = onUpdateInput,
-                        onSend = { text ->
-                            onSendMessage(text)
-                            coroutineScope.launch {
-                                kotlinx.coroutines.delay(50)
-                                listState.animateScrollToItem(listState.layoutInfo.totalItemsCount)
-                            }
-                        },
-                        isGenerating = uiState.isGenerating,
-                        onAbort = onAbort
-                    )
-                    if (showSlashMenu && filteredCommands.isNotEmpty()) {
-                        SlashCommandMenu(
-                            commands = filteredCommands,
-                            onSelect = { cmd ->
-                                onUpdateInput(cmd.name + " ")
-                            }
+                    Column {
+                        if (showSlashMenu && filteredCommands.isNotEmpty()) {
+                            SlashCommandMenu(
+                                commands = filteredCommands,
+                                onSelect = { cmd ->
+                                    onUpdateInput(cmd.name + " ")
+                                }
+                            )
+                        }
+                        ChatInput(
+                            input = uiState.currentInput,
+                            onInputChange = onUpdateInput,
+                            onSend = { text ->
+                                onSendMessage(text)
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(50)
+                                    listState.animateScrollToItem(listState.layoutInfo.totalItemsCount)
+                                }
+                            },
+                            isGenerating = uiState.isGenerating,
+                            onAbort = onAbort,
+                            currentAgent = uiState.currentAgent,
+                            onSetAgent = onSetAgent
                         )
                     }
                 }
@@ -304,13 +316,14 @@ fun SlashCommandMenu(commands: List<SlashCommand>, onSelect: (SlashCommand) -> U
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 12.dp)
+            .heightIn(max = 240.dp),
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 8.dp,
         tonalElevation = 4.dp
     ) {
-        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
             commands.forEach { cmd ->
                 Row(
                     modifier = Modifier
@@ -391,98 +404,152 @@ fun WelcomeScreen(onNewSession: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatInput(
     input: String,
     onInputChange: (String) -> Unit,
     onSend: (String) -> Unit,
     isGenerating: Boolean,
-    onAbort: () -> Unit
+    onAbort: () -> Unit,
+    currentAgent: String = "build",
+    onSetAgent: (String) -> Unit = {}
 ) {
+    val agents = listOf("build", "plan", "code", "task")
+    var agentMenuExpanded by remember { mutableStateOf(false) }
+
     Surface(
         tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface
     ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            Text(
-                text = "> ",
-                style = TextStyle(
-                    fontFamily = MonoFontFamily,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier.padding(bottom = 10.dp)
-            )
-            OutlinedTextField(
-                value = input,
-                onValueChange = onInputChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp, max = 120.dp),
-                placeholder = {
-                    Text(
-                        "Type a message or / for commands...",
-                        style = TextStyle(
-                            fontFamily = MonoFontFamily,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box {
+                    TextButton(onClick = { agentMenuExpanded = true }) {
+                        Text(
+                            text = currentAgent,
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         )
-                    )
-                },
-                maxLines = 5,
-                textStyle = TextStyle(
-                    fontFamily = MonoFontFamily,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = {
-                    if (input.isNotBlank()) onSend(input)
-                }),
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedBorderColor = MaterialTheme.colorScheme.outline,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            if (isGenerating) {
-                FilledIconButton(
-                    onClick = onAbort,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Icon(
-                        Icons.Filled.Stop,
-                        contentDescription = "Stop",
-                        tint = MaterialTheme.colorScheme.onError
-                    )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "\u25BC",
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 8.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = agentMenuExpanded,
+                        onDismissRequest = { agentMenuExpanded = false }
+                    ) {
+                        agents.forEach { agent ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = agent,
+                                        style = TextStyle(
+                                            fontFamily = MonoFontFamily,
+                                            fontWeight = if (agent == currentAgent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (agent == currentAgent) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                },
+                                onClick = {
+                                    onSetAgent(agent)
+                                    agentMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
-            } else {
-                FilledIconButton(
-                    onClick = { if (input.isNotBlank()) onSend(input) },
-                    enabled = input.isNotBlank(),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "> ",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = onInputChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp, max = 120.dp),
+                    placeholder = {
+                        Text(
+                            "Type a message or / for commands...",
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        )
+                    },
+                    maxLines = 5,
+                    textStyle = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = {
+                        if (input.isNotBlank()) onSend(input)
+                    }),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedBorderColor = MaterialTheme.colorScheme.outline,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
-                ) {
-                    Icon(Icons.Filled.Send, contentDescription = "Send")
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                if (isGenerating) {
+                    FilledIconButton(
+                        onClick = onAbort,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            Icons.Filled.Stop,
+                            contentDescription = "Stop",
+                            tint = MaterialTheme.colorScheme.onError
+                        )
+                    }
+                } else {
+                    FilledIconButton(
+                        onClick = { if (input.isNotBlank()) onSend(input) },
+                        enabled = input.isNotBlank(),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Icon(Icons.Filled.Send, contentDescription = "Send")
+                    }
                 }
             }
         }

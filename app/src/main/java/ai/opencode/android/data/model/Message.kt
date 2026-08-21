@@ -9,8 +9,8 @@ data class UserMessage(
     val sessionID: String,
     val role: String = "user",
     val time: MessageTime,
-    val agent: String,
-    val model: MessageModel,
+    val agent: String = "build",
+    val model: MessageModel = MessageModel(providerID = "", modelID = ""),
     val summary: SummaryInfo? = null
 )
 

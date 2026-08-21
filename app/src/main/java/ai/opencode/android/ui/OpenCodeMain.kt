@@ -136,7 +136,8 @@ fun OpenCodeMain(
                                 },
                                 onUpdateInput = { viewModel.updateInput(it) },
                                 onAbort = { viewModel.abortSession() },
-                                onPermissionResponse = { allow -> viewModel.respondPermission(allow) }
+                                onPermissionResponse = { allow -> viewModel.respondPermission(allow) },
+                                onSetAgent = { viewModel.setAgent(it) }
                             )
                         }
                         is Screen.Sessions -> {

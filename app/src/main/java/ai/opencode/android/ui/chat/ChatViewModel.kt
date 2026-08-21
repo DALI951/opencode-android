@@ -258,7 +258,26 @@ class ChatViewModel(
                 }
             }
 
-            is ReasoningPartData, is StepFinishPartInfo, is StepStartPartInfo -> {
+            is ReasoningPartData -> {
+                val msgId = part.messageID
+                val reasoningKey = "reasoning-$msgId"
+                val sb = streamingText.getOrPut(reasoningKey) { StringBuilder() }
+                if (delta != null) {
+                    sb.append(delta)
+                } else {
+                    sb.clear()
+                    sb.append(part.text)
+                }
+                _uiState.update { state ->
+                    val existingParts = state.parts.toMutableList()
+                    val idx = existingParts.indexOfFirst { it.id == part.id }
+                    val updatedPart = part.copy(text = sb.toString())
+                    if (idx >= 0) existingParts[idx] = updatedPart else existingParts.add(updatedPart)
+                    state.copy(parts = existingParts)
+                }
+            }
+
+            is StepFinishPartInfo, is StepStartPartInfo -> {
                 _uiState.update { state ->
                     val existingParts = state.parts.toMutableList()
                     val idx = existingParts.indexOfFirst { it.id == part.id }
@@ -350,12 +369,13 @@ class ChatViewModel(
         val sessionId = currentSessionId ?: return
         if (text.isBlank()) return
 
+        val agent = _uiState.value.currentAgent
         val msgId = "temp-${System.currentTimeMillis()}"
         val userMessage = UserMessage(
             id = msgId,
             sessionID = sessionId,
             time = MessageTime(created = System.currentTimeMillis()),
-            agent = "build",
+            agent = agent,
             model = MessageModel(providerID = "", modelID = "")
         )
 
@@ -371,7 +391,7 @@ class ChatViewModel(
         }
 
         viewModelScope.launch {
-            api.sendMessageAsync(sessionId, text).fold(
+            api.sendMessageAsync(sessionId, text, agent).fold(
                 onSuccess = { },
                 onFailure = { e ->
                     _uiState.update { it.copy(isGenerating = false, error = "Failed to send: ${e.message}") }
@@ -415,6 +435,7 @@ class ChatViewModel(
 
     fun clearError() { _uiState.update { it.copy(error = null) } }
     fun updateInput(text: String) { _uiState.update { it.copy(currentInput = text) } }
+    fun setAgent(agent: String) { _uiState.update { it.copy(currentAgent = agent) } }
 
     override fun onCleared() {
         super.onCleared()
@@ -436,6 +457,7 @@ data class ChatUiState(
     val serverVersion: String? = null,
     val sessions: List<Session> = emptyList(),
     val currentSessionId: String? = null,
+    val currentAgent: String = "build",
     val messages: List<Any> = emptyList(),
     val parts: List<Part> = emptyList(),
     val currentDiffs: List<FileDiff> = emptyList(),
