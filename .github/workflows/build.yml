@@ -33,6 +33,13 @@ jobs:
       - name: Build Release APK (unsigned)
         run: ./gradlew assembleRelease
 
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          echo "name=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
       - name: Sign Release APK
         run: |
           # Generate a signing key
@@ -70,11 +77,11 @@ jobs:
             --ks-pass pass:opencode123 \
             --key-pass pass:opencode123 \
             --ks-key-alias opencode \
-            --out app-release.apk \
+            --out "opencode-android-v${{ steps.version.outputs.name }}.apk" \
             aligned.apk
 
-          echo "Signed APK created: app-release.apk"
-          ls -la app-release.apk
+          echo "Signed APK created: opencode-android-v${{ steps.version.outputs.name }}.apk"
+          ls -la "opencode-android-v${{ steps.version.outputs.name }}.apk"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -85,8 +92,8 @@ jobs:
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: opencode-release
-          path: app-release.apk
+          name: opencode-release-v${{ steps.version.outputs.name }}
+          path: "opencode-android-v${{ steps.version.outputs.name }}.apk"
 
   release:
     needs: build
@@ -96,6 +103,12 @@ jobs:
       contents: write
 
     steps:
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          echo "name=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Download Debug APK
         uses: actions/download-artifact@v4
         with:
@@ -104,7 +117,7 @@ jobs:
       - name: Download Release APK
         uses: actions/download-artifact@v4
         with:
-          name: opencode-release
+          name: "opencode-release-v${{ steps.version.outputs.name }}"
 
       - name: List downloaded files
         run: ls -la
@@ -112,15 +125,15 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: "Build #${{ github.run_number }}"
+          tag_name: "v${{ steps.version.outputs.name }}"
+          name: "v${{ steps.version.outputs.name }}"
           body: |
-            ## OpenCode Android
+            ## OpenCode Android v${{ steps.version.outputs.name }}
             
             Native Android frontend for the OpenCode AI coding agent.
             
             ### APK Files
-            - **`app-release.apk`** - Signed release APK (recommended)
+            - **`opencode-android-v${{ steps.version.outputs.name }}.apk`** - Signed release APK (recommended)
             - `app-debug.apk` - Debug APK
             
             ### Setup
@@ -136,7 +149,7 @@ jobs:
             - File browser with search
             - Diff viewer for session changes
           files: |
-            app-release.apk
+            opencode-android-v${{ steps.version.outputs.name }}.apk
             app-debug.apk
           draft: false
           prerelease: false

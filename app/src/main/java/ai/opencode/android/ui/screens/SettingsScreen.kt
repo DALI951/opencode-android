@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import ai.opencode.android.BuildConfig
 import ai.opencode.android.di.AppContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
