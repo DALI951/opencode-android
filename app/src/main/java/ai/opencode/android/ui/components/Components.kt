@@ -1,8 +1,10 @@
 package ai.opencode.android.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -163,94 +165,91 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
             when (segment) {
                 is MarkdownSegment.CodeBlock -> {
                     var copied by remember { mutableStateOf(false) }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            )
                     ) {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (segment.language.isNotBlank()) {
-                                    Text(
-                                        text = segment.language,
-                                        style = TextStyle(
-                                            fontFamily = MonoFontFamily,
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (segment.language.isNotBlank()) {
+                                Text(
+                                    text = segment.language,
+                                    style = TextStyle(
+                                        fontFamily = MonoFontFamily,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                     )
-                                } else {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                                Surface(
-                                    onClick = {
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                    .clickable {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         val clip = ClipData.newPlainText("code", segment.code)
                                         clipboard.setPrimaryClip(clip)
                                         Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                                         copied = true
-                                    },
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = if (copied)
-                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
-                                    else
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    modifier = Modifier.height(24.dp)
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                                            contentDescription = null,
-                                            tint = if (copied)
+                                    Icon(
+                                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                        contentDescription = null,
+                                        tint = if (copied)
+                                            MaterialTheme.colorScheme.tertiary
+                                        else
+                                            MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = if (copied) "Copied" else "Copy",
+                                        style = TextStyle(
+                                            fontFamily = MonoFontFamily,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (copied)
                                                 MaterialTheme.colorScheme.tertiary
                                             else
-                                                MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(12.dp)
+                                                MaterialTheme.colorScheme.primary
                                         )
-                                        Text(
-                                            text = if (copied) "Copied" else "Copy",
-                                            style = TextStyle(
-                                                fontFamily = MonoFontFamily,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = if (copied)
-                                                    MaterialTheme.colorScheme.tertiary
-                                                else
-                                                    MaterialTheme.colorScheme.primary
-                                            )
-                                        )
-                                    }
-                                }
-                                if (copied) {
-                                    LaunchedEffect(Unit) {
-                                        kotlinx.coroutines.delay(2000)
-                                        copied = false
-                                    }
+                                    )
                                 }
                             }
-                            Text(
-                                text = segment.code,
-                                style = TextStyle(
-                                    fontFamily = MonoFontFamily,
-                                    fontSize = 13.sp,
-                                    lineHeight = 18.sp,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                ),
-                                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
-                            )
+                            if (copied) {
+                                LaunchedEffect(Unit) {
+                                    kotlinx.coroutines.delay(2000)
+                                    copied = false
+                                }
+                            }
                         }
+                        Text(
+                            text = segment.code,
+                            style = TextStyle(
+                                fontFamily = MonoFontFamily,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            ),
+                            modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
+                        )
                     }
                 }
                 is MarkdownSegment.Text -> {

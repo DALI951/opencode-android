@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -388,33 +389,37 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
             .padding(vertical = 4.dp)
             .padding(start = 4.dp)
     ) {
-        parts.forEach { part ->
-            when (part) {
-                is TextPartData -> {
-                    if (part.text.isNotBlank()) {
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            MarkdownText(
-                                text = part.text.trim(),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            if (allText.length > 10) {
-                                Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                                    CopyButton(text = allText, context = context)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            SelectionContainer {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    parts.forEach { part ->
+                        when (part) {
+                            is TextPartData -> {
+                                if (part.text.isNotBlank()) {
+                                    MarkdownText(
+                                        text = part.text.trim(),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
+                            is ReasoningPartData -> {
+                                ReasoningItem(part = part)
+                            }
+                            is ToolCallPartData -> {
+                                ToolCallItem(part = part)
+                            }
+                            is StepFinishPartInfo -> {
+                                StepFinishItem(part = part)
+                            }
+                            else -> { /* ignore */ }
                         }
                     }
                 }
-                is ReasoningPartData -> {
-                    ReasoningItem(part = part)
+            }
+            if (allText.length > 10) {
+                Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                    CopyButton(text = allText, context = context)
                 }
-                is ToolCallPartData -> {
-                    ToolCallItem(part = part)
-                }
-                is StepFinishPartInfo -> {
-                    StepFinishItem(part = part)
-                }
-                else -> { /* ignore */ }
             }
         }
         if (tokenUsage != null && (tokenUsage.input > 0 || tokenUsage.output > 0)) {
