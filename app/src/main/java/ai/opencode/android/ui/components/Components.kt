@@ -177,7 +177,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -193,7 +193,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                             } else {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
@@ -201,37 +201,28 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         val clip = ClipData.newPlainText("code", segment.code)
                                         clipboard.setPrimaryClip(clip)
-                                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Copied!", Toast.LENGTH_SHORT).show()
                                         copied = true
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                                        contentDescription = null,
-                                        tint = if (copied)
-                                            MaterialTheme.colorScheme.tertiary
-                                        else
-                                            MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(12.dp)
+                                Icon(
+                                    if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                    contentDescription = null,
+                                    tint = if (copied) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = if (copied) "Copied!" else "Copy",
+                                    style = TextStyle(
+                                        fontFamily = MonoFontFamily,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (copied) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
                                     )
-                                    Text(
-                                        text = if (copied) "Copied" else "Copy",
-                                        style = TextStyle(
-                                            fontFamily = MonoFontFamily,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = if (copied)
-                                                MaterialTheme.colorScheme.tertiary
-                                            else
-                                                MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                }
+                                )
                             }
                             if (copied) {
                                 LaunchedEffect(Unit) {

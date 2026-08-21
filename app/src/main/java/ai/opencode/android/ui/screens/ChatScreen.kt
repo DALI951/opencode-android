@@ -18,9 +18,9 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -389,37 +389,59 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
             .padding(vertical = 4.dp)
             .padding(start = 4.dp)
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            SelectionContainer {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    parts.forEach { part ->
-                        when (part) {
-                            is TextPartData -> {
-                                if (part.text.isNotBlank()) {
-                                    MarkdownText(
-                                        text = part.text.trim(),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                            is ReasoningPartData -> {
-                                ReasoningItem(part = part)
-                            }
-                            is ToolCallPartData -> {
-                                ToolCallItem(part = part)
-                            }
-                            is StepFinishPartInfo -> {
-                                StepFinishItem(part = part)
-                            }
-                            else -> { /* ignore */ }
-                        }
+        parts.forEach { part ->
+            when (part) {
+                is TextPartData -> {
+                    if (part.text.isNotBlank()) {
+                        MarkdownText(
+                            text = part.text.trim(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
-            }
-            if (allText.length > 10) {
-                Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                    CopyButton(text = allText, context = context)
+                is ReasoningPartData -> {
+                    ReasoningItem(part = part)
                 }
+                is ToolCallPartData -> {
+                    ToolCallItem(part = part)
+                }
+                is StepFinishPartInfo -> {
+                    StepFinishItem(part = part)
+                }
+                else -> { /* ignore */ }
+            }
+        }
+        if (allText.length > 5) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .clickable {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("opencode", allText)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                    }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    Icons.Filled.ContentCopy,
+                    contentDescription = "Copy",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "Copy response",
+                    style = TextStyle(
+                        fontFamily = MonoFontFamily,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
             }
         }
         if (tokenUsage != null && (tokenUsage.input > 0 || tokenUsage.output > 0)) {
