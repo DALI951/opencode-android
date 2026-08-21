@@ -186,6 +186,25 @@ class OpenCodeApi(
         }
     }
 
+    suspend fun listAgents(): Result<List<AgentInfo>> {
+        return rawRequest("GET", "/config").map { body ->
+            val config = json.parseToJsonElement(body).jsonObject
+            val agents = config["agent"]?.jsonObject
+            if (agents != null) {
+                agents.entries.map { (name, value) ->
+                    val obj = value.jsonObject
+                    AgentInfo(
+                        id = name,
+                        description = obj["description"]?.jsonPrimitive?.contentOrNull ?: "",
+                        mode = obj["mode"]?.jsonPrimitive?.contentOrNull ?: "primary"
+                    )
+                }
+            } else {
+                emptyList()
+            }
+        }
+    }
+
     // SSE Events
     fun subscribeEvents(): Flow<EventEnvelope> {
         val url = "$baseUrl/event"
@@ -242,4 +261,10 @@ class OpenCodeApi(
 data class EventEnvelope(
     val type: String,
     val properties: JsonElement
+)
+
+data class AgentInfo(
+    val id: String,
+    val description: String,
+    val mode: String
 )

@@ -415,7 +415,7 @@ fun ChatInput(
     currentAgent: String = "build",
     onSetAgent: (String) -> Unit = {}
 ) {
-    val agents = listOf("build", "plan", "deepsearch", "inspector", "interrogator", "therapist")
+    val agents = uiState.availableAgents.ifEmpty { listOf("build", "plan") }
     var agentMenuExpanded by remember { mutableStateOf(false) }
 
     Surface(

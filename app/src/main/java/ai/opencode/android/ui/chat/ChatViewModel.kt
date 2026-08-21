@@ -49,6 +49,7 @@ class ChatViewModel(
                         }
                         subscribeToEvents()
                         loadSessions()
+                        loadAgents()
                     },
                     onFailure = { e ->
                         _uiState.update {
@@ -310,6 +311,20 @@ class ChatViewModel(
         }
     }
 
+    fun loadAgents() {
+        viewModelScope.launch {
+            api.listAgents().fold(
+                onSuccess = { agents ->
+                    val agentIds = agents.map { it.id }
+                    if (agentIds.isNotEmpty()) {
+                        _uiState.update { it.copy(availableAgents = agentIds) }
+                    }
+                },
+                onFailure = { e -> Log.e("ChatViewModel", "Failed to load agents, using defaults", e) }
+            )
+        }
+    }
+
     fun selectSession(sessionId: String) {
         currentSessionId = sessionId
         streamingText.clear()
@@ -458,6 +473,7 @@ data class ChatUiState(
     val sessions: List<Session> = emptyList(),
     val currentSessionId: String? = null,
     val currentAgent: String = "build",
+    val availableAgents: List<String> = listOf("build", "plan"),
     val messages: List<Any> = emptyList(),
     val parts: List<Part> = emptyList(),
     val currentDiffs: List<FileDiff> = emptyList(),
