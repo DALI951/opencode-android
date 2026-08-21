@@ -392,19 +392,17 @@ fun AssistantMessageBlock(parts: List<Part>, tokenUsage: TokenUsage?) {
             when (part) {
                 is TextPartData -> {
                     if (part.text.isNotBlank()) {
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            Text(
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            MarkdownText(
                                 text = part.text.trim(),
-                                style = TextStyle(
-                                    fontFamily = MonoFontFamily,
-                                    fontSize = 14.sp,
-                                    lineHeight = 22.sp,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                ),
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .fillMaxWidth()
                             )
                             if (allText.length > 10) {
-                                CopyButton(text = allText, context = context)
+                                Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                                    CopyButton(text = allText, context = context)
+                                }
                             }
                         }
                     }
