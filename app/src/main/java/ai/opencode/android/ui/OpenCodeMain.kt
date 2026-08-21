@@ -116,11 +116,24 @@ fun OpenCodeMain(
                         onRetry = { viewModel.connectToServer() }
                     )
                 }
-                !uiState.isConnected && uiState.connectionError != null -> {
-                    ConnectionScreen(
-                        isConnecting = false,
-                        error = uiState.connectionError,
-                        onRetry = { viewModel.connectToServer() }
+                !uiState.isConnected -> {
+                    ChatScreen(
+                        uiState = uiState,
+                        onSendMessage = { viewModel.sendMessage(it) },
+                        onNewSession = { viewModel.createNewSession() },
+                        onSelectSession = { id ->
+                            viewModel.selectSession(id)
+                            currentScreen = Screen.Chat
+                        },
+                        onUpdateInput = { viewModel.updateInput(it) },
+                        onAbort = { viewModel.abortSession() },
+                        onPermissionResponse = { allow -> viewModel.respondPermission(allow) },
+                        onSetAgent = { viewModel.setAgent(it) },
+                        onSelectModel = { provider, model -> viewModel.selectModel(provider, model) },
+                        onSelectTheme = { theme -> viewModel.selectTheme(theme) },
+                        onDismissPicker = { viewModel.dismissPicker() },
+                        onBrowseSessions = { currentScreen = Screen.Sessions },
+                        onConnect = { viewModel.connectToServer() }
                     )
                 }
                 else -> {

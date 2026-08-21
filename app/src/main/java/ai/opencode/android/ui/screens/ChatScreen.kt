@@ -80,7 +80,8 @@ fun ChatScreen(
     onSelectModel: (String, String) -> Unit,
     onSelectTheme: (String) -> Unit,
     onDismissPicker: () -> Unit,
-    onBrowseSessions: () -> Unit = {}
+    onBrowseSessions: () -> Unit = {},
+    onConnect: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -101,7 +102,10 @@ fun ChatScreen(
                 WelcomeScreen(
                     onNewSession = onNewSession,
                     onBrowseSessions = onBrowseSessions,
-                    serverVersion = uiState.serverVersion
+                    serverVersion = uiState.serverVersion,
+                    onConnect = onConnect,
+                    error = uiState.connectionError,
+                    isConnecting = uiState.isConnecting
                 )
             } else {
                 LazyColumn(
@@ -485,7 +489,16 @@ fun SlashCommandMenu(commands: List<SlashCommand>, onSelect: (SlashCommand) -> U
 }
 
 @Composable
-fun WelcomeScreen(onNewSession: () -> Unit, onBrowseSessions: () -> Unit = {}, serverVersion: String? = null) {
+fun WelcomeScreen(
+    onNewSession: () -> Unit,
+    onBrowseSessions: () -> Unit = {},
+    serverVersion: String? = null,
+    onConnect: () -> Unit = {},
+    error: String? = null,
+    isConnecting: Boolean = false
+) {
+    val isConnected = serverVersion != null
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -513,7 +526,7 @@ fun WelcomeScreen(onNewSession: () -> Unit, onBrowseSessions: () -> Unit = {}, s
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        if (serverVersion != null) {
+        if (isConnected) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Connected \u2022 v$serverVersion",
@@ -525,163 +538,258 @@ fun WelcomeScreen(onNewSession: () -> Unit, onBrowseSessions: () -> Unit = {}, s
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Setup Checklist",
-                    style = TextStyle(
-                        fontFamily = MonoFontFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+        if (!isConnected) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Get Started",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     )
-                )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "You need an OpenCode server running in Termux/Ubuntu on this device.",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Setup Steps",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SetupStep("1", "Install Termux", "From F-Droid (not Play Store)")
+                    SetupStep("2", "Install Ubuntu/proot", "pkg install proot-distro && proot-distro install ubuntu")
+                    SetupStep("3", "Install OpenCode", "npm i -g opencode@latest")
+                    SetupStep("4", "Set password", "export OPENCODE_SERVER_PASSWORD=yourpassword")
+                    SetupStep("5", "Start the server", "opencode serve --hostname 0.0.0.0 --port 4096")
+                    SetupStep("6", "Tap Connect below", "App will connect to 127.0.0.1:4096")
+                }
+            }
+
+            error?.let {
                 Spacer(modifier = Modifier.height(12.dp))
-                SetupStep(
-                    number = "1",
-                    title = "Install Termux",
-                    detail = "From F-Droid (not Play Store)",
-                    done = true
-                )
-                SetupStep(
-                    number = "2",
-                    title = "Install Ubuntu/proot",
-                    detail = "pkg install proot-distro && proot-distro install ubuntu",
-                    done = true
-                )
-                SetupStep(
-                    number = "3",
-                    title = "Install OpenCode",
-                    detail = "npm i -g opencode@latest",
-                    done = true
-                )
-                SetupStep(
-                    number = "4",
-                    title = "Run the server",
-                    detail = "opencode serve --port 4096",
-                    done = true
-                )
-                SetupStep(
-                    number = "5",
-                    title = "Configure credentials",
-                    detail = "Set OPENCODE_SERVER_PASSWORD env var",
-                    done = true
-                )
-                SetupStep(
-                    number = "6",
-                    title = "Connect this app",
-                    detail = "Settings \u2192 set host/port/password",
-                    done = true
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.errorContainer
+                ) {
+                    Text(
+                        text = it,
+                        modifier = Modifier.padding(12.dp),
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = onConnect,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isConnecting,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                if (isConnecting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Connecting...")
+                } else {
+                    Text(
+                        "Connect to Server",
+                        style = TextStyle(fontFamily = MonoFontFamily, fontSize = 14.sp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Default Connection",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Host: 127.0.0.1:4096",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    )
+                    Text(
+                        text = "User: opencode",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    )
+                    Text(
+                        text = "Change in Settings if needed",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Slash Commands",
-                    style = TextStyle(
-                        fontFamily = MonoFontFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+        if (isConnected) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Quick Reference",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     )
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                CommandHint("/model", "Switch AI model")
-                CommandHint("/theme", "Change theme")
-                CommandHint("/compact", "Compact session context")
-                CommandHint("/abort", "Stop current generation")
-                CommandHint("/cost", "Show session cost")
-                CommandHint("/diff", "Show file changes")
-                Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CommandHint("/model", "Switch AI model")
+                    CommandHint("/theme", "Change theme")
+                    CommandHint("/compact", "Compact session context")
+                    CommandHint("/abort", "Stop current generation")
+                    CommandHint("/cost", "Show session cost")
+                    CommandHint("/diff", "Show file changes")
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Type / in the input to see all commands",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Tips",
+                        style = TextStyle(
+                            fontFamily = MonoFontFamily,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TipItem("Use the agent picker (build, plan, deepsearch, etc.) to switch agents")
+                    TipItem("File diffs appear when the agent modifies your code")
+                    TipItem("Grant or deny tool permissions from the dialog that appears")
+                    TipItem("Reasoning blocks expand to show thinking steps")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = onNewSession,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Type / in the input to see all commands",
+                    "New Session",
                     style = TextStyle(
                         fontFamily = MonoFontFamily,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        fontSize = 14.sp
                     )
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            OutlinedButton(
+                onClick = onBrowseSessions,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
                 Text(
-                    text = "Tips",
+                    "Browse Sessions",
                     style = TextStyle(
                         fontFamily = MonoFontFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontSize = 14.sp
                     )
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                TipItem("Use the agent picker (build, plan, deepsearch, etc.) to switch agents")
-                TipItem("File diffs appear when the agent modifies your code")
-                TipItem("Grant or deny tool permissions from the dialog that appears")
-                TipItem("Long-press reasoning blocks to expand thinking steps")
             }
-        }
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        Button(
-            onClick = onNewSession,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Icon(Icons.Outlined.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                "New Session",
-                style = TextStyle(
-                    fontFamily = MonoFontFamily,
-                    fontSize = 14.sp
-                )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = onBrowseSessions,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text(
-                "Browse Sessions",
-                style = TextStyle(
-                    fontFamily = MonoFontFamily,
-                    fontSize = 14.sp
-                )
-            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -689,7 +797,7 @@ fun WelcomeScreen(onNewSession: () -> Unit, onBrowseSessions: () -> Unit = {}, s
 }
 
 @Composable
-fun SetupStep(number: String, title: String, detail: String, done: Boolean) {
+fun SetupStep(number: String, title: String, detail: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -699,16 +807,16 @@ fun SetupStep(number: String, title: String, detail: String, done: Boolean) {
         Surface(
             modifier = Modifier.size(20.dp),
             shape = RoundedCornerShape(10.dp),
-            color = if (done) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.surfaceVariant
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = "\u2713",
+                    text = number,
                     style = TextStyle(
                         fontFamily = MonoFontFamily,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

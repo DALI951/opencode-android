@@ -30,7 +30,9 @@ class ChatViewModel(
     private val streamingText = ConcurrentHashMap<String, StringBuilder>()
 
     init {
-        connectToServer()
+        if (connectionManager.password.isNotBlank()) {
+            connectToServer()
+        }
     }
 
     fun connectToServer() {
