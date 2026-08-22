@@ -29,6 +29,7 @@ fun SettingsScreen(
     onUpdateServer: () -> Unit = {},
     onReconnectAfterUpdate: () -> Unit = {},
     onClearStatus: () -> Unit = {},
+    appUpdateStatus: String? = null,
     serverUpdateStatus: String? = null
 ) {
     val connectionManager = AppContainer.connectionManager
@@ -158,7 +159,6 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // === App Updates ===
             Text(
                 text = "App Updates",
                 style = MaterialTheme.typography.titleMedium
@@ -197,11 +197,38 @@ fun SettingsScreen(
                         Text("Check")
                     }
                 }
+
+                appUpdateStatus?.let { status ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = status,
+                                modifier = Modifier.weight(1f),
+                                style = TextStyle(
+                                    fontFamily = MonoFontFamily,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextButton(onClick = onClearStatus) {
+                                Text("Dismiss", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
             }
 
             HorizontalDivider()
 
-            // === Server Updates ===
             Text(
                 text = "Server Updates",
                 style = MaterialTheme.typography.titleMedium
@@ -277,7 +304,6 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // Info
             Text(
                 text = "About",
                 style = MaterialTheme.typography.titleMedium

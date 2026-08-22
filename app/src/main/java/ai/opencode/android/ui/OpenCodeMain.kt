@@ -219,7 +219,8 @@ fun OpenCodeMain(
                                 onCheckAppUpdate = { viewModel.checkForUpdateManually() },
                                 onUpdateServer = { viewModel.updateOpenCodeServer() },
                                 onReconnectAfterUpdate = { viewModel.reconnectAfterServerUpdate() },
-                                onClearStatus = { viewModel.clearServerUpdateStatus() },
+                                onClearStatus = { viewModel.clearAppUpdateStatus() },
+                                appUpdateStatus = uiState.appUpdateStatus,
                                 serverUpdateStatus = uiState.serverUpdateStatus
                             )
                         }

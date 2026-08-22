@@ -329,8 +329,10 @@ class ChatViewModel(
             api.listAgents().fold(
                 onSuccess = { agents ->
                     val agentIds = agents.map { it.id }
-                    if (agentIds.isNotEmpty()) {
-                        _uiState.update { it.copy(availableAgents = agentIds) }
+                    val builtIn = listOf("build", "plan")
+                    val merged = (builtIn + agentIds).distinct()
+                    if (merged.isNotEmpty()) {
+                        _uiState.update { it.copy(availableAgents = merged) }
                     }
                 },
                 onFailure = { e -> Log.e("ChatViewModel", "Failed to load agents, using defaults", e) }
@@ -571,25 +573,25 @@ class ChatViewModel(
 
     fun checkForUpdateManually() {
         viewModelScope.launch {
-            _uiState.update { it.copy(serverUpdateStatus = "Checking for app updates...") }
+            _uiState.update { it.copy(appUpdateStatus = "Checking for app updates...") }
             try {
                 val app = getApplication<Application>()
                 val currentVersion = app.packageManager
                     .getPackageInfo(app.packageName, 0).versionName ?: "1.0.0"
                 val update = updateChecker.checkForUpdate(currentVersion)
                 if (update != null) {
-                    _uiState.update { it.copy(pendingUpdate = update, serverUpdateStatus = null) }
+                    _uiState.update { it.copy(pendingUpdate = update, appUpdateStatus = null) }
                 } else {
-                    _uiState.update { it.copy(serverUpdateStatus = "App is up to date (v$currentVersion)") }
+                    _uiState.update { it.copy(appUpdateStatus = "App is up to date (v$currentVersion)") }
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(serverUpdateStatus = "Update check failed: ${e.message}") }
+                _uiState.update { it.copy(appUpdateStatus = "Update check failed: ${e.message}") }
             }
         }
     }
 
-    fun clearServerUpdateStatus() {
-        _uiState.update { it.copy(serverUpdateStatus = null) }
+    fun clearAppUpdateStatus() {
+        _uiState.update { it.copy(appUpdateStatus = null) }
     }
 
     fun updateOpenCodeServer() {
@@ -719,5 +721,6 @@ data class ChatUiState(
     val userInputTexts: Map<String, String> = emptyMap(),
     val pendingUpdate: UpdateInfo? = null,
     val isDownloadingUpdate: Boolean = false,
-    val serverUpdateStatus: String? = null
+    val serverUpdateStatus: String? = null,
+    val appUpdateStatus: String? = null
 )
