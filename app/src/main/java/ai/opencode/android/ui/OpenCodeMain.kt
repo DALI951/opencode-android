@@ -23,7 +23,9 @@ import ai.opencode.android.ui.screens.FileBrowserScreen
 import ai.opencode.android.ui.screens.SessionListScreen
 import ai.opencode.android.ui.screens.SettingsScreen
 import ai.opencode.android.ui.screens.DiffViewerScreen
+import ai.opencode.android.ui.screens.TerminalScreen
 import ai.opencode.android.ui.screens.MonoFontFamily
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
