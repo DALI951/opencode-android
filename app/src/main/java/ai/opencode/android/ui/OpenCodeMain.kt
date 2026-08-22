@@ -114,6 +114,13 @@ fun OpenCodeMain(
                             Icon(Icons.Outlined.TrackChanges, contentDescription = "Changes")
                         }
                     }
+                    IconButton(onClick = { currentScreen = Screen.Terminal }) {
+                        Icon(
+                            imageVector = Icons.Default.Terminal,
+                            contentDescription = "Terminal",
+                            tint = Color(0xFFfab283)
+                        )
+                    }
                     IconButton(onClick = { currentScreen = Screen.Settings }) {
                         Icon(Icons.Outlined.Settings, contentDescription = "Settings")
                     }
@@ -211,6 +218,12 @@ fun OpenCodeMain(
                                 onUpdateServer = { viewModel.updateOpenCodeServer() },
                                 onReconnectAfterUpdate = { viewModel.reconnectAfterServerUpdate() },
                                 serverUpdateStatus = uiState.serverUpdateStatus
+                            )
+                        }
+
+                        is Screen.Terminal -> {
+                            TerminalScreen(
+                                onBack = { currentScreen = Screen.Chat }
                             )
                         }
                     }
@@ -324,4 +337,5 @@ sealed class Screen {
     data object Files : Screen()
     data object Diff : Screen()
     data object Settings : Screen()
+    data object Terminal : Screen()
 }
