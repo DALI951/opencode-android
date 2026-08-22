@@ -12,6 +12,7 @@ import ai.opencode.android.data.api.UpdateChecker
 import ai.opencode.android.data.api.UpdateInfo
 import ai.opencode.android.data.model.*
 import ai.opencode.android.di.AppContainer
+import ai.opencode.android.util.TermuxCommandHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -596,69 +597,27 @@ class ChatViewModel(
 
     fun updateOpenCodeServer() {
         viewModelScope.launch {
-            _uiState.update { it.copy(serverUpdateStatus = "Creating update session...") }
+            val app = getApplication<Application>()
 
-            val updateSessionId: String
-            try {
-                val session = api.createSession("OpenCode Server Update").getOrElse { e ->
-                    _uiState.update { it.copy(serverUpdateStatus = "Failed to create session: ${e.message}") }
-                    return@launch
-                }
-                updateSessionId = session.id
-            } catch (e: Exception) {
-                _uiState.update { it.copy(serverUpdateStatus = "Failed: ${e.message}") }
+            if (!TermuxCommandHelper.isTermuxInstalled(app)) {
+                _uiState.update { it.copy(serverUpdateStatus = "Termux is not installed. Install it from F-Droid or GitHub.") }
                 return@launch
             }
 
-            _uiState.update { it.copy(serverUpdateStatus = "Sending update command...") }
+            _uiState.update { it.copy(serverUpdateStatus = "Sending update command to Termux...") }
 
-            try {
-                api.sendMessageAsync(
-                    updateSessionId,
-                    "npm i -g opencode@latest --force",
-                    "build"
-                ).getOrElse { e ->
-                    _uiState.update { it.copy(serverUpdateStatus = "Failed to send command: ${e.message}") }
-                    return@launch
-                }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(serverUpdateStatus = "Failed: ${e.message}") }
-                return@launch
-            }
-
-            _uiState.update { it.copy(serverUpdateStatus = "Command sent. Waiting 30s for npm install to finish...") }
-
-            delay(30000)
-
-            try {
-                val messages = api.listMessages(updateSessionId).getOrElse { emptyList() }
-                val lastAssistant = messages.lastOrNull()?.first as? AssistantMessage
-                if (lastAssistant != null) {
-                    val parts = messages.lastOrNull()?.second ?: emptyList()
-                    val text = parts.filterIsInstance<TextPartData>().joinToString("\n") { it.text }
-                    val success = text.contains("added", ignoreCase = true) ||
-                                  text.contains("updated", ignoreCase = true) ||
-                                  text.contains("up to date", ignoreCase = true) ||
-                                  text.contains("changed", ignoreCase = true) ||
-                                  text.contains("success", ignoreCase = true)
-
-                    if (success) {
-                        _uiState.update { it.copy(
-                            serverUpdateStatus = "OpenCode updated!\nServer needs restart in Termux.\nThen tap Reconnect below."
-                        ) }
-                    } else {
-                        val snippet = text.takeLast(300)
-                        _uiState.update { it.copy(
-                            serverUpdateStatus = "Update completed. Output:\n$snippet"
-                        ) }
-                    }
-                } else {
-                    _uiState.update { it.copy(
-                        serverUpdateStatus = "Still waiting... Tap Update again to check."
-                    ) }
-                }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(serverUpdateStatus = "Could not verify: ${e.message}") }
+            val success = TermuxCommandHelper.updateOpencode(app)
+            if (success) {
+                _uiState.update { it.copy(
+                    serverUpdateStatus = "Update command sent to Termux!\n" +
+                        "Check Termux for progress.\n" +
+                        "After npm install finishes, restart the server in Termux, then tap Reconnect."
+                ) }
+            } else {
+                _uiState.update { it.copy(
+                    serverUpdateStatus = "Failed to send command to Termux.\n" +
+                        "Make sure Termux is installed and has RUN_COMMAND permission."
+                ) }
             }
         }
     }
