@@ -23,7 +23,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -39,7 +38,7 @@ fun TerminalScreen(
     val promptColor = Color(0xFFfab283)
     val outputColor = Color(0xFFeeeeee)
 
-    var lines by remember { mutableStateOf(listOf("OpenCode Terminal", "Type 'help' for commands. Waiting for shell...", "")) }
+    var lines by remember { mutableStateOf(listOf("OpenCode Terminal", "")) }
     var input by remember { mutableStateOf("") }
     var isRunning by remember { mutableStateOf(false) }
     var process by remember { mutableStateOf<Process?>(null) }
@@ -48,48 +47,71 @@ fun TerminalScreen(
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
 
-    // Auto-scroll to bottom
     LaunchedEffect(lines.size) {
         if (lines.isNotEmpty()) {
             listState.animateScrollToItem(lines.size - 1)
         }
     }
 
-    // Start shell on first composition
     DisposableEffect(Unit) {
         val job = scope.launch(Dispatchers.IO) {
-            try {
-                val pb = ProcessBuilder("bash")
-                pb.redirectErrorStream(true)
-                pb.environment()["TERM"] = "xterm-256color"
-                val p = pb.start()
-                withContext(Dispatchers.Main) { process = p; stdin = p.outputStream }
+            var p: Process? = null
+            var reader: BufferedReader? = null
 
-                val reader = BufferedReader(InputStreamReader(p.inputStream))
-                val readJob = launch(Dispatchers.IO) {
+            try {
+                // Try bash first, then sh
+                val shells = listOf(
+                    arrayOf("bash"),
+                    arrayOf("sh"),
+                    arrayOf("/system/bin/sh")
+                )
+
+                for (shell in shells) {
                     try {
-                        var line: String? = reader.readLine()
-                        while (line != null) {
-                            val captured = line
-                            withContext(Dispatchers.Main) {
-                                lines = lines + captured
-                            }
-                            line = reader.readLine()
-                        }
+                        val pb = ProcessBuilder(*shell)
+                        pb.redirectErrorStream(true)
+                        pb.environment()["TERM"] = "xterm-256color"
+                        p = pb.start()
+                        reader = BufferedReader(InputStreamReader(p.inputStream))
+                        break
                     } catch (e: Exception) {
-                        Log.e("Terminal", "Read error", e)
+                        Log.w("Terminal", "Shell ${shell[0]} not available: ${e.message}")
+                        p?.destroyForcibly()
+                        p = null
                     }
                 }
 
-                withContext(Dispatchers.Main) {
-                    isRunning = true
+                if (p == null || reader == null) {
+                    withContext(Dispatchers.Main) {
+                        lines = lines + "No shell found on this device."
+                        lines = lines + "Install Termux for a full Linux terminal."
+                    }
+                    return@launch
                 }
 
-                readJob.join()
-            } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    lines = lines + "Failed to start shell: ${e.message}"
+                    process = p
+                    stdin = p.outputStream
+                    isRunning = true
+                    lines = lines + "Shell ready. Type commands below."
+                    lines = lines + ""
                 }
+
+                var line: String? = reader.readLine()
+                while (line != null) {
+                    val captured = line
+                    withContext(Dispatchers.Main) {
+                        lines = lines + captured
+                    }
+                    line = reader.readLine()
+                }
+            } catch (e: Exception) {
+                Log.e("Terminal", "Shell error", e)
+                withContext(Dispatchers.Main) {
+                    lines = lines + "Shell error: ${e.message}"
+                }
+            } finally {
+                p?.destroyForcibly()
             }
         }
 
@@ -112,7 +134,6 @@ fun TerminalScreen(
             )
         )
 
-        // Terminal output
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -134,7 +155,6 @@ fun TerminalScreen(
             }
         }
 
-        // Input bar
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.fillMaxWidth()
@@ -176,7 +196,7 @@ fun TerminalScreen(
                                     }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
-                                        lines = lines + "Error sending command: ${e.message}"
+                                        lines = lines + "Error: ${e.message}"
                                     }
                                 }
                             }

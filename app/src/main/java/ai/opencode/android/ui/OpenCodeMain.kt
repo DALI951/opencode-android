@@ -31,7 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OpenCodeMain(
-    viewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
+    viewModel: ChatViewModel = viewModel(factory = ChatViewModel.factory(LocalContext.current.applicationContext as android.app.Application))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -219,6 +219,7 @@ fun OpenCodeMain(
                                 onCheckAppUpdate = { viewModel.checkForUpdateManually() },
                                 onUpdateServer = { viewModel.updateOpenCodeServer() },
                                 onReconnectAfterUpdate = { viewModel.reconnectAfterServerUpdate() },
+                                onClearStatus = { viewModel.clearServerUpdateStatus() },
                                 serverUpdateStatus = uiState.serverUpdateStatus
                             )
                         }

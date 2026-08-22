@@ -13,14 +13,16 @@ import ai.opencode.android.data.api.UpdateInfo
 import ai.opencode.android.data.model.*
 import ai.opencode.android.di.AppContainer
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import java.util.concurrent.ConcurrentHashMap
 
 class ChatViewModel(
+    application: Application,
     private val connectionManager: ConnectionManager = AppContainer.connectionManager
-) : AndroidViewModel(Application()) {
+) : AndroidViewModel(application) {
 
     private val api get() = connectionManager.api
     private val json get() = connectionManager.json
@@ -579,10 +581,6 @@ class ChatViewModel(
                     _uiState.update { it.copy(pendingUpdate = update, serverUpdateStatus = null) }
                 } else {
                     _uiState.update { it.copy(serverUpdateStatus = "App is up to date (v$currentVersion)") }
-                    viewModelScope.launch {
-                        kotlinx.coroutines.delay(3000)
-                        _uiState.update { it.copy(serverUpdateStatus = null) }
-                    }
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(serverUpdateStatus = "Update check failed: ${e.message}") }
@@ -590,8 +588,11 @@ class ChatViewModel(
         }
     }
 
+    fun clearServerUpdateStatus() {
+        _uiState.update { it.copy(serverUpdateStatus = null) }
+    }
+
     fun updateOpenCodeServer() {
-        val sessionId = currentSessionId
         viewModelScope.launch {
             _uiState.update { it.copy(serverUpdateStatus = "Creating update session...") }
 
@@ -607,15 +608,15 @@ class ChatViewModel(
                 return@launch
             }
 
-            _uiState.update { it.copy(serverUpdateStatus = "Updating OpenCode server... DO NOT close the app") }
+            _uiState.update { it.copy(serverUpdateStatus = "Sending update command...") }
 
             try {
                 api.sendMessageAsync(
                     updateSessionId,
-                    "Run this command exactly and wait for it to complete: npm i -g opencode@latest --force\n\nAfter it finishes, tell me the output. Do NOT restart the server.",
+                    "npm i -g opencode@latest --force",
                     "build"
                 ).getOrElse { e ->
-                    _uiState.update { it.copy(serverUpdateStatus = "Failed to send update command: ${e.message}") }
+                    _uiState.update { it.copy(serverUpdateStatus = "Failed to send command: ${e.message}") }
                     return@launch
                 }
             } catch (e: Exception) {
@@ -623,40 +624,39 @@ class ChatViewModel(
                 return@launch
             }
 
-            _uiState.update { it.copy(serverUpdateStatus = "Update command sent. Waiting for completion...") }
+            _uiState.update { it.copy(serverUpdateStatus = "Command sent. Waiting 30s for npm install to finish...") }
 
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(30000)
+            delay(30000)
 
-                try {
-                    val messages = api.listMessages(updateSessionId).getOrElse { emptyList() }
-                    val lastAssistant = messages.lastOrNull()?.first as? AssistantMessage
-                    if (lastAssistant != null) {
-                        val parts = messages.lastOrNull()?.second ?: emptyList()
-                        val text = parts.filterIsInstance<TextPartData>().joinToString("\n") { it.text }
-                        val success = text.contains("added", ignoreCase = true) ||
-                                      text.contains("updated", ignoreCase = true) ||
-                                      text.contains("up to date", ignoreCase = true) ||
-                                      text.contains("changed", ignoreCase = true)
+            try {
+                val messages = api.listMessages(updateSessionId).getOrElse { emptyList() }
+                val lastAssistant = messages.lastOrNull()?.first as? AssistantMessage
+                if (lastAssistant != null) {
+                    val parts = messages.lastOrNull()?.second ?: emptyList()
+                    val text = parts.filterIsInstance<TextPartData>().joinToString("\n") { it.text }
+                    val success = text.contains("added", ignoreCase = true) ||
+                                  text.contains("updated", ignoreCase = true) ||
+                                  text.contains("up to date", ignoreCase = true) ||
+                                  text.contains("changed", ignoreCase = true) ||
+                                  text.contains("success", ignoreCase = true)
 
-                        if (success) {
-                            _uiState.update { it.copy(
-                                serverUpdateStatus = "OpenCode updated! Server needs restart.\nRestart in Termux, then tap Reconnect."
-                            ) }
-                        } else {
-                            val snippet = text.takeLast(200)
-                            _uiState.update { it.copy(
-                                serverUpdateStatus = "Update completed. Check output:\n$snippet"
-                            ) }
-                        }
-                    } else {
+                    if (success) {
                         _uiState.update { it.copy(
-                            serverUpdateStatus = "Update still running. Wait a bit longer and check again."
+                            serverUpdateStatus = "OpenCode updated!\nServer needs restart in Termux.\nThen tap Reconnect below."
+                        ) }
+                    } else {
+                        val snippet = text.takeLast(300)
+                        _uiState.update { it.copy(
+                            serverUpdateStatus = "Update completed. Output:\n$snippet"
                         ) }
                     }
-                } catch (e: Exception) {
-                    _uiState.update { it.copy(serverUpdateStatus = "Could not verify update: ${e.message}") }
+                } else {
+                    _uiState.update { it.copy(
+                        serverUpdateStatus = "Still waiting... Tap Update again to check."
+                    ) }
                 }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(serverUpdateStatus = "Could not verify: ${e.message}") }
             }
         }
     }
@@ -682,10 +682,10 @@ class ChatViewModel(
     }
 
     companion object {
-        val Factory = object : ViewModelProvider.Factory {
+        fun factory(application: Application) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return ChatViewModel() as T
+                return ChatViewModel(application) as T
             }
         }
     }

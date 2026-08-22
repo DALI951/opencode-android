@@ -28,6 +28,7 @@ fun SettingsScreen(
     onCheckAppUpdate: () -> Unit = {},
     onUpdateServer: () -> Unit = {},
     onReconnectAfterUpdate: () -> Unit = {},
+    onClearStatus: () -> Unit = {},
     serverUpdateStatus: String? = null
 ) {
     val connectionManager = AppContainer.connectionManager
